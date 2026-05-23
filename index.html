@@ -559,13 +559,19 @@ function enviarStock() {
   btnConf.textContent = "Enviando...";
   btnConf.disabled = true;
 
+  // Armar lista de productos como texto plano
+  var lineasProd = [];
+  productos.forEach(function(p, i) { lineasProd.push(p.codigo + "," + p.desc + "," + (cantidades[i] || 0)); });
+
   emailjs.send("service_w2kud47", "template_xg5bc0d", {
+    repositor:    sesion.nombre,
+    fecha:        fecha,
+    hora:         hora,
+    sucursal:     sesion.sucursal,
     distribuidor: sesion.dist,
     seccion:      sesion.sec,
-    sucursal:     sesion.sucursal,
     tipo:         tipoConteo,
-    fecha:        fecha,
-    mensaje:      cuerpo
+    productos:    lineasProd.join("\n")
   }).then(function() {
     if (esG) {
       var arr = getUsers();

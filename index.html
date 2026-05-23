@@ -109,6 +109,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
 .ok-msg{color:var(--verde);font-size:13px;font-weight:700;text-align:center;display:none;padding:8px 12px;background:var(--verde3);border-radius:8px;border:1.5px solid rgba(31,165,53,.2)}
 .exito-ring{width:80px;height:80px;border-radius:50%;border:3px solid var(--verde);background:var(--verde3);display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>emailjs.init("idoZ0uNJAtiILxJQ6");</script>
 </head>
 <body>
 
@@ -551,21 +553,42 @@ function enviarStock() {
     "SECCION:" + sesion.sec, "TIPO:" + tipoConteo, "---", "CODIGO,DESCRIPCION,UNIDADES"];
   productos.forEach(function(p, i) { lineas.push(p.codigo + "," + p.desc + "," + (cantidades[i] || 0)); });
   var cuerpo = lineas.join("\n");
-  var asunto = "STOCK|" + sesion.dist + "|" + sesion.sec + "|" + sesion.sucursal + "|" + tipoConteo + "|" + fecha;
-  window.location.href = "mailto:" + MAIL_BOT + "?subject=" + encodeURIComponent(asunto) + "&body=" + encodeURIComponent(cuerpo);
 
-  if (esG) {
-    var arr = getUsers();
-    for (var i = 0; i < arr.length; i++) {
-      if (arr[i].nombre.toLowerCase() === sesion.nombre.toLowerCase() && arr[i].pass === sesion.pass) {
-        arr[i].gondolaLista = true; break;
+  // Mostrar enviando...
+  var btnConf = document.getElementById("btn-confirmar");
+  btnConf.textContent = "Enviando...";
+  btnConf.disabled = true;
+
+  emailjs.send("service_wy81mgf", "template_xg5bc0d", {
+    distribuidor: sesion.dist,
+    seccion:      sesion.sec,
+    sucursal:     sesion.sucursal,
+    tipo:         tipoConteo,
+    fecha:        fecha,
+    mensaje:      cuerpo
+  }).then(function() {
+    if (esG) {
+      var arr = getUsers();
+      for (var i = 0; i < arr.length; i++) {
+        if (arr[i].nombre.toLowerCase() === sesion.nombre.toLowerCase() && arr[i].pass === sesion.pass) {
+          arr[i].gondolaLista = true; break;
+        }
       }
+      setUsers(arr);
+      gondolaEnviada = true;
     }
-    setUsers(arr);
-    gondolaEnviada = true;
-  }
+    btnConf.textContent = "Confirmar y enviar";
+    btnConf.disabled = false;
+    mostrarExito(esG, productos, cont, total);
+  }).catch(function(error) {
+    btnConf.textContent = "Confirmar y enviar";
+    btnConf.disabled = false;
+    alert("Error al enviar. Revisa tu conexion a internet.");
+    console.error(error);
+  });
+}
 
-  setTimeout(function() {
+function mostrarExito(esG, productos, cont, total) { setTimeout(function() {
     document.getElementById("exito-titulo").textContent = esG ? "Gondola enviada!" : "Deposito enviado!";
     document.getElementById("exito-sub").textContent = sesion.dist + " - " + sesion.sec;
     document.getElementById("exito-card").innerHTML =

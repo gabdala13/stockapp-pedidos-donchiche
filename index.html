@@ -343,14 +343,15 @@ function getUsers() {
   try { return JSON.parse(sessionStorage.getItem("usuarios_cache") || "[]"); } catch(e) { return []; }
 }
 
-function setUsers(arr) {
+function setUsers(arr, callback) {
   sessionStorage.setItem("usuarios_cache", JSON.stringify(arr));
-  // Guardar en Firebase
   fetch(DB_URL, {
     method: "PUT",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify(arr)
-  }).catch(function(e) { console.error("Firebase write error:", e); });
+  }).then(function() {
+    if (callback) callback();
+  }).catch(function(e) { console.error("Firebase write error:", e); if (callback) callback(); });
 }
 
 function limpiarVencidos() {
@@ -624,7 +625,9 @@ function enviarStock() {
       syncUsers(function(arr2) {
         for (var i = 0; i < arr2.length; i++) {
           if (arr2[i].nombre.toLowerCase() === sesion.nombre.toLowerCase() && arr2[i].pass === sesion.pass) {
-            arr2[i].gondolaLista = true; break;
+            arr2[i].gondolaLista = true;
+            sesion = arr2[i]; // actualizar sesion local tambien
+            break;
           }
         }
         setUsers(arr2);
@@ -659,14 +662,19 @@ function mostrarExito(esG, productos, cont, total) { setTimeout(function() {
 }
 
 function finalizarSesion() {
+  var btnFin = document.getElementById("btn-finalizar");
+  btnFin.textContent = "Cerrando sesion...";
+  btnFin.disabled = true;
   syncUsers(function(arr) {
     var nuevo = arr.filter(function(u) {
       return !(u.nombre.toLowerCase() === sesion.nombre.toLowerCase() && u.pass === sesion.pass);
     });
-    setUsers(nuevo);
+    setUsers(nuevo, function() {
+      sesion = null; gondolaEnviada = false; cantidades = {};
+      sessionStorage.clear();
+      irA("s-inicio");
+    });
   });
-  sesion = null; gondolaEnviada = false; cantidades = {};
-  irA("s-inicio");
 }
 
 // ── EVENT LISTENERS ──

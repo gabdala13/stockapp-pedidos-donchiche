@@ -335,11 +335,51 @@ function irA(id) {
   window.scrollTo(0, 0);
 }
 
+// ── FIREBASE ──
+var DB_URL = "https://stockapp-donchiche-default-rtdb.firebaseio.com/usuarios.json";
+
 function getUsers() {
-  try { return JSON.parse(localStorage.getItem("usuarios_dia") || "[]"); } catch(e) { return []; }
+  // Lectura sincronica desde cache local (se actualiza con syncUsers)
+  try { return JSON.parse(sessionStorage.getItem("usuarios_cache") || "[]"); } catch(e) { return []; }
 }
-function setUsers(a) { localStorage.setItem("usuarios_dia", JSON.stringify(a)); }
-function limpiarVencidos() { setUsers(getUsers().filter(function(u) { return Date.now() < u.expira; })); }
+
+function setUsers(arr) {
+  sessionStorage.setItem("usuarios_cache", JSON.stringify(arr));
+  // Guardar en Firebase
+  fetch(DB_URL, {
+    method: "PUT",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(arr)
+  }).catch(function(e) { console.error("Firebase write error:", e); });
+}
+
+function limpiarVencidos() {
+  var vivos = getUsers().filter(function(u) { return Date.now() < u.expira; });
+  setUsers(vivos);
+}
+
+function syncUsers(callback) {
+  // Leer usuarios desde Firebase y actualizar cache
+  fetch(DB_URL)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var arr = Array.isArray(data) ? data : (data ? Object.values(data) : []);
+      // Filtrar vencidos
+      arr = arr.filter(function(u) { return u && Date.now() < u.expira; });
+      sessionStorage.setItem("usuarios_cache", JSON.stringify(arr));
+      // Si habia vencidos, limpiar en Firebase
+      fetch(DB_URL, {
+        method: "PUT",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(arr)
+      });
+      if (callback) callback(arr);
+    })
+    .catch(function(e) {
+      console.error("Firebase read error:", e);
+      if (callback) callback(getUsers());
+    });
+}
 
 function generarPass() {
   var p = ["sol","luna","verde","chiche","super","mar","pan","sal","rio","luz"];
@@ -401,7 +441,7 @@ function loginEncargado() {
     document.getElementById("enc-nombre").value = "";
     document.getElementById("enc-pass").value = "";
     document.getElementById("enc-bienvenida").textContent = "Hola, " + nombre + "!";
-    limpiarVencidos(); renderUsuarios();
+    syncUsers(function() { renderUsuarios(); });
     irA("s-panel-enc");
   } else {
     err.style.display = "block";
@@ -431,22 +471,29 @@ function loginRepositor() {
   var nombre = document.getElementById("rep-nombre").value.trim().toLowerCase();
   var pass = document.getElementById("rep-pass").value.trim();
   var err = document.getElementById("rep-err");
-  limpiarVencidos();
-  var arr = getUsers();
-  var usuario = null;
-  for (var i = 0; i < arr.length; i++) {
-    if (arr[i].nombre.toLowerCase() === nombre && arr[i].pass === pass) { usuario = arr[i]; break; }
-  }
-  if (usuario) {
-    sesion = usuario;
-    gondolaEnviada = usuario.gondolaLista || false;
-    err.style.display = "none";
-    document.getElementById("rep-nombre").value = "";
-    document.getElementById("rep-pass").value = "";
-    mostrarInstruccion();
-  } else {
-    err.style.display = "block";
-  }
+  var btnLogin = document.getElementById("btn-login-rep");
+  btnLogin.textContent = "Verificando...";
+  btnLogin.disabled = true;
+
+  // Sincronizar con Firebase para validar usuario
+  syncUsers(function(arr) {
+    btnLogin.textContent = "Entrar";
+    btnLogin.disabled = false;
+    var usuario = null;
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i].nombre.toLowerCase() === nombre && arr[i].pass === pass) { usuario = arr[i]; break; }
+    }
+    if (usuario) {
+      sesion = usuario;
+      gondolaEnviada = usuario.gondolaLista || false;
+      err.style.display = "none";
+      document.getElementById("rep-nombre").value = "";
+      document.getElementById("rep-pass").value = "";
+      mostrarInstruccion();
+    } else {
+      err.style.display = "block";
+    }
+  });
 }
 
 function mostrarInstruccion() {
@@ -574,13 +621,14 @@ function enviarStock() {
     productos:    lineasProd.join("\n")
   }).then(function() {
     if (esG) {
-      var arr = getUsers();
-      for (var i = 0; i < arr.length; i++) {
-        if (arr[i].nombre.toLowerCase() === sesion.nombre.toLowerCase() && arr[i].pass === sesion.pass) {
-          arr[i].gondolaLista = true; break;
+      syncUsers(function(arr2) {
+        for (var i = 0; i < arr2.length; i++) {
+          if (arr2[i].nombre.toLowerCase() === sesion.nombre.toLowerCase() && arr2[i].pass === sesion.pass) {
+            arr2[i].gondolaLista = true; break;
+          }
         }
-      }
-      setUsers(arr);
+        setUsers(arr2);
+      });
       gondolaEnviada = true;
     }
     btnConf.textContent = "Confirmar y enviar";
@@ -611,10 +659,12 @@ function mostrarExito(esG, productos, cont, total) { setTimeout(function() {
 }
 
 function finalizarSesion() {
-  var arr = getUsers().filter(function(u) {
-    return !(u.nombre.toLowerCase() === sesion.nombre.toLowerCase() && u.pass === sesion.pass);
+  syncUsers(function(arr) {
+    var nuevo = arr.filter(function(u) {
+      return !(u.nombre.toLowerCase() === sesion.nombre.toLowerCase() && u.pass === sesion.pass);
+    });
+    setUsers(nuevo);
   });
-  setUsers(arr);
   sesion = null; gondolaEnviada = false; cantidades = {};
   irA("s-inicio");
 }
@@ -628,8 +678,10 @@ document.addEventListener("DOMContentLoaded", function() {
   });
   sel.addEventListener("change", actualizarSecciones);
 
-  limpiarVencidos();
-  renderUsuarios();
+  // Sincronizar con Firebase al abrir
+  syncUsers(function(arr) {
+    renderUsuarios();
+  });
 
   // Toggle sucursal/local
   document.getElementById("tog-c").addEventListener("click", function() {

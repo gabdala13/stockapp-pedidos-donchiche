@@ -190,9 +190,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
         <label>Distribuidor</label>
         <select id="new-dist"><option value="">Elegir distribuidor</option></select>
       </div>
-      <div class="field">
+      <div class="field" id="field-seccion" style="display:none">
         <label>Seccion</label>
-        <select id="new-sec"><option value="">Primero elegi distribuidor</option></select>
+        <select id="new-sec"><option value="">Elegir seccion</option></select>
       </div>
       <div class="field">
         <label>Locales</label>
@@ -306,15 +306,182 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
 
 <script>
 var DISTRIBUIDORES = {
-  "Coca Cola": {
+  "DUNBER (Coca Cola)": {
     secciones: {
       "Bebidas": [
-        {codigo:"116524", desc:"Coca Cola 3L"},
-        {codigo:"241935", desc:"Crush Pomelo 3L"}
+        {codigo:"241512",desc:"Coca Cola lata mini 220ml"},
+        {codigo:"106503",desc:"Coca cola lata 354ml"},
+        {codigo:"229941",desc:"Coca cola zero lata 354ml"},
+        {codigo:"116448",desc:"Coca Cola Pet 600ml"},
+        {codigo:"118338",desc:"Coca Cola Pet Zero 600ml"},
+        {codigo:"102611",desc:"Coca Cola Retornable 1.5lt"},
+        {codigo:"102625",desc:"Coca Cola Ret Zero 1.5lt"},
+        {codigo:"102596",desc:"Coca Cola Ret 2lt"},
+        {codigo:"117067",desc:"Coca Cola Zero Ret 2lt"},
+        {codigo:"118350",desc:"Coca Cola Retornable 2,5lts"},
+        {codigo:"102599",desc:"Coca Cola Pet 1,5lts"},
+        {codigo:"102624",desc:"Coca Cola Zero Pet 1,5ltrs"},
+        {codigo:"102605",desc:"Coca Cola Pet 2,25lts"},
+        {codigo:"109012",desc:"Coca Cola Zero Pet 2.25lt"},
+        {codigo:"102613",desc:"Coca Cola pet 3lts"},
+        {codigo:"102604",desc:"Fanta Naranja Pet 500ml"},
+        {codigo:"242138",desc:"Fanta Naranja lata mini 220ml"},
+        {codigo:"106783",desc:"Fanta lata 354ml"},
+        {codigo:"245377",desc:"Fanta zero lata 354ml"},
+        {codigo:"108263",desc:"Fanta Naranja retornable vidrio 1.5ltr"},
+        {codigo:"102598",desc:"Fanta Naranja Retornable 2lts"},
+        {codigo:"165431",desc:"Fanta Limon Dulce Retornable 2lts"},
+        {codigo:"121106",desc:"Fanta Naranja Retornable 2,5lts"},
+        {codigo:"102601",desc:"Fanta Naranja Pet 1,5lts"},
+        {codigo:"102607",desc:"Fanta Naranja Pet 2,25lts"},
+        {codigo:"230523",desc:"Fanta Limon Dulce Pet 2,5lts"},
+        {codigo:"102619",desc:"Fanta Naranja Pet 3ltrs"},
+        {codigo:"246522",desc:"Sprite Lata mini 220ml"},
+        {codigo:"106927",desc:"Sprite lata 354ml"},
+        {codigo:"102603",desc:"Sprite Pet 500ml"},
+        {codigo:"102617",desc:"Sprite retornable vidrio 1.5lt"},
+        {codigo:"102600",desc:"Sprite Pet 1.5lt"},
+        {codigo:"118748",desc:"Sprite Retornable 2,5lt"},
+        {codigo:"102606",desc:"Sprite Pet 2,25lt"},
+        {codigo:"102620",desc:"Sprite Pet 3lt"},
+        {codigo:"241845",desc:"Schweppes Pomelo 1.5lt"},
+        {codigo:"142834",desc:"Schweppes Tonica 1.5lt"},
+        {codigo:"139472",desc:"Schweppes Pomelo 2.25lt"},
+        {codigo:"206041",desc:"Schweppes Tonica 2.25lt"},
+        {codigo:"121006",desc:"Crush Naranja 3lts"},
+        {codigo:"121005",desc:"Crush Pomelo 3lts"},
+        {codigo:"121004",desc:"Crush Lima 3lts"},
+        {codigo:"124934",desc:"Crush Manzana 3lts"},
+        {codigo:"227238",desc:"Monster Energy Green 473ml"},
+        {codigo:"228997",desc:"Monster Energy Green Zero 473ml"},
+        {codigo:"234633",desc:"Monster Energy Mango Loco 473ml"},
+        {codigo:"140663",desc:"Monster Energy Ultra Sunrise 473ml"},
+        {codigo:"209727",desc:"Monster Energy Anana 473ml"},
+        {codigo:"227210",desc:"Monster Energy Ultra blanco 473ml"},
+        {codigo:"236869",desc:"Monster Energy Pipeline Rosado 473ml"},
+        {codigo:"233959",desc:"Monster Energy Watermelon rojo 473ml"},
+        {codigo:"146175",desc:"Benedictino Sin Gas Pet 600ml"},
+        {codigo:"231466",desc:"Benedictino Con Gas Pet 600ml"},
+        {codigo:"182987",desc:"Benedictino Pet 2lt"},
+        {codigo:"176190",desc:"Benedictino Pet 3lt"},
+        {codigo:"150462",desc:"Benedictino bidon 6,25lt"},
+        {codigo:"147256",desc:"Benedictino Soda Sifon 2lt"},
+        {codigo:"129588",desc:"Cepita Fresh Naranja Pet 500ml"},
+        {codigo:"129587",desc:"Cepita Fresh Pomelo Pet 500ml"},
+        {codigo:"126639",desc:"Cepita Fresh Naranja Pet 1.5lt"},
+        {codigo:"126713",desc:"Cepita Fresh Pomelo Pet 1.5lt"},
+        {codigo:"234617",desc:"Cepita Fresh Manzana 1.5lt"},
+        {codigo:"204279",desc:"Cepita Fresh Naranja Pet 3lt"},
+        {codigo:"217375",desc:"Cepita Fresh Pomelo 3lt"},
+        {codigo:"207364",desc:"Cepita Jugo Tetra Manzana 1lt"},
+        {codigo:"207363",desc:"Cepita Jugo Tetra Naranja 1lt"},
+        {codigo:"207366",desc:"Cepita Jugo Tetra Multifrutal 1lt"},
+        {codigo:"120182",desc:"Cepita Jugo Durazno pet 1lt"},
+        {codigo:"120181",desc:"Cepita jugo Naranja pet 1lt"},
+        {codigo:"109933",desc:"Cepita Jugo Naranja pet 1.5lt"},
+        {codigo:"113631",desc:"Cepita Jugo Durazno pet 1.5lt"},
+        {codigo:"114084",desc:"Powerade Naranja Pet 500ml"},
+        {codigo:"110713",desc:"Powerade Mountain Blast Pet 500ml"},
+        {codigo:"112757",desc:"Powerade Frutas Tropicales Pet 500ml"},
+        {codigo:"112756",desc:"Powerade Manzana 500ml"},
+        {codigo:"241513",desc:"Powerade Manzana Green 500ml"},
+        {codigo:"207357",desc:"Powerade Frutas Tropicales Pet 995ml"},
+        {codigo:"192435",desc:"Powerade Mountain Blast Pet 995ml"},
+        {codigo:"217374",desc:"Powerade Manzana 995ml"},
+        {codigo:"102627",desc:"Aquarius Manzana 500ml"},
+        {codigo:"102626",desc:"Aquarius Pera 500ml"},
+        {codigo:"120950",desc:"Aquarius Pomelo Rosado 500ml"},
+        {codigo:"107551",desc:"Aquarius Pomelo 500ml"},
+        {codigo:"146883",desc:"Aquarius Naranja 500ml"},
+        {codigo:"116335",desc:"Aquarius Pomelo Rosado 1.5lt"},
+        {codigo:"102630",desc:"Aquarius Pomelo 1.5lt"},
+        {codigo:"102628",desc:"Aquarius Pera 1.5lt"},
+        {codigo:"102629",desc:"Aquarius Manzana 1.5lt"},
+        {codigo:"119685",desc:"Aquarius Limonada 1,5lt"},
+        {codigo:"108055",desc:"Aquarius Naranja 1.5lt"},
+        {codigo:"160991",desc:"Aquarius Naranja Retor 2lt"},
+        {codigo:"160989",desc:"Aquarius Pomelo Retor 2lt"},
+        {codigo:"207362",desc:"Aquarius Pomelo Rosado Retor 2lt"},
+        {codigo:"160988",desc:"Aquarius Pera Retor 2lt"},
+        {codigo:"118224",desc:"Ades Anana 200ml"},
+        {codigo:"115201",desc:"Ades Manzana 200ml"},
+        {codigo:"123710",desc:"Ades Naranja 200ml"},
+        {codigo:"114978",desc:"Ades Durazno 200ml"},
+        {codigo:"115202",desc:"Ades Frutas Tropicales 200ml"},
+        {codigo:"122325",desc:"Ades Manzana 1lt"},
+        {codigo:"110600",desc:"Ades Naranja 1lt"},
+        {codigo:"123711",desc:"Ades Durazno 1lt"},
+        {codigo:"121933",desc:"Ades Frutas Tropicales 1lt"},
+        {codigo:"114645",desc:"Ades Anana 1lt"},
+        {codigo:"215738",desc:"Las 3 Ninas Leche tetra entera 1lt"},
+        {codigo:"216782",desc:"Las 3 Ninas Leche tetra descremada 1lt"},
+        {codigo:"233515",desc:"Las 3 Ninas Leche 0% lactosa tetra 1lt"},
+        {codigo:"244177",desc:"Las 3 Ninas leche primeros pasos 1lt"},
+        {codigo:"247068",desc:"Las 3 Ninas Crema p/batir 200ml"},
+        {codigo:"216776",desc:"Las 3 Ninas Crema p/cocinar 200ml"},
+        {codigo:"238873",desc:"Las 3 Ninas Crema p/batir 500ml"},
+        {codigo:"232054",desc:"Las 3 Ninas Crema p/cocinar 500ml"},
+        {codigo:"229936",desc:"Las 3 Ninas Yogurt frutilla 200ml"},
+        {codigo:"229937",desc:"Las 3 Ninas Yogurt vainilla 200ml"},
+        {codigo:"230298",desc:"Las 3 Ninas Yogurt frutilla tetra 500ml"},
+        {codigo:"230297",desc:"Las 3 Ninas Yogurt Vainilla tetra 500ml"},
+        {codigo:"218722",desc:"Las 3 Ninas Chocolatada 200ml"},
+        {codigo:"232100",desc:"Las 3 Ninas Chocolatada 1ltr"},
+        {codigo:"229938",desc:"Las 3 Ninas cereales Cacao 100gr"},
+        {codigo:"230296",desc:"Las 3 Ninas Tostadas de Arroz 150gr"}
+      ]
+    }
+  },
+  "Pritty Chepes": {
+    secciones: {
+      "Bebidas": [
+        {codigo:"113585",desc:"Pritty x 3lt"},
+        {codigo:"103763",desc:"Pritty x 2,25lt"},
+        {codigo:"118388",desc:"Pritty Cero x 2,25lt"},
+        {codigo:"103761",desc:"Pritty x 1,5lt"},
+        {codigo:"103769",desc:"Pritty x 1lt"},
+        {codigo:"103762",desc:"Pritty x 500ml"},
+        {codigo:"234018",desc:"Saldan Soda Sifon 2lt"},
+        {codigo:"103764",desc:"Saldan Jugo Naranja 1.5lt"},
+        {codigo:"103765",desc:"Saldan Jugo Pomelo 1.5lt"},
+        {codigo:"103760",desc:"Saldan Jugo Limon 1.5lt"},
+        {codigo:"101788",desc:"Vino Nativo Tinto 1lt"},
+        {codigo:"101789",desc:"Vino Nativo Blanco 1lt"},
+        {codigo:"159803",desc:"Vino Toro 750ml"},
+        {codigo:"241591",desc:"Vino Toro 1lt"},
+        {codigo:"232725",desc:"Doble Cola x 3L"},
+        {codigo:"183288",desc:"Doble Cola s/Azucar x 3L"},
+        {codigo:"149909",desc:"Doble Cola Pomelo x 3L"},
+        {codigo:"123188",desc:"Doble Cola Naranja x 3L"},
+        {codigo:"123186",desc:"Doble Cola Lima Lim x 3L"},
+        {codigo:"118009",desc:"Livra agua Pomelo 1.5lt"},
+        {codigo:"118006",desc:"Livra agua Manzana 1.5lt"},
+        {codigo:"118007",desc:"Livra agua Naranja 1.5lt"},
+        {codigo:"118008",desc:"Livra agua Pera 1.5lt"},
+        {codigo:"239893",desc:"Livra agua Nrj Mango 1.5lt"},
+        {codigo:"123125",desc:"BAGGIO Durazno 125ml"},
+        {codigo:"110171",desc:"BAGGIO Multifruta 125ml"},
+        {codigo:"100968",desc:"BAGGIO Durazno 200ml"},
+        {codigo:"100970",desc:"BAGGIO Multifruta 200ml"},
+        {codigo:"106583",desc:"BAGGIO Durazno 1lt"},
+        {codigo:"100967",desc:"BAGGIO Multifruta 1lt"},
+        {codigo:"245243",desc:"BAGGIO Naranja 100% 1l"},
+        {codigo:"114463",desc:"BAGGIO Leche entera 1l"},
+        {codigo:"100974",desc:"BAGGIO Leche descremada 1l"},
+        {codigo:"122794",desc:"BAGGIO Leche entera 1.5l"}
       ],
-      "Energizantes": [
-        {codigo:"1000085", desc:"Monster Ultra 370ml"},
-        {codigo:"108652",  desc:"Monster Mango Loco 370ml"}
+      "Aderezos": [
+        {codigo:"103733",desc:"Mayonesa Natura 250gr"},
+        {codigo:"103735",desc:"Mayonesa Natura 500gr"},
+        {codigo:"103734",desc:"Mayonesa Natura 1kg"},
+        {codigo:"107573",desc:"Mayonesa Natura 2.9kg"},
+        {codigo:"116993",desc:"Salsa Golf Natura 2.9kg"},
+        {codigo:"109402",desc:"Salsa Golf Natura 250gr"},
+        {codigo:"118371",desc:"Ketchup Natura 2.9kg"},
+        {codigo:"109195",desc:"Ketchup Natura 250gr"},
+        {codigo:"103564",desc:"Mayodan mayonesa 3kg"},
+        {codigo:"111174",desc:"Cada dia Mayonesa 250gr"},
+        {codigo:"112439",desc:"Cada dia Mayonesa 500gr"}
       ]
     }
   }
@@ -390,13 +557,22 @@ function generarPass() {
 function actualizarSecciones() {
   var dist = document.getElementById("new-dist").value;
   var sel = document.getElementById("new-sec");
+  var fieldSec = document.getElementById("field-seccion");
   sel.innerHTML = "";
-  if (!dist) { sel.innerHTML = '<option value="">Primero elegi distribuidor</option>'; return; }
+  if (!dist) { fieldSec.style.display = "none"; return; }
   var secs = Object.keys(DISTRIBUIDORES[dist].secciones);
-  for (var i = 0; i < secs.length; i++) {
+  if (secs.length === 1) {
     var o = document.createElement("option");
-    o.value = secs[i]; o.textContent = secs[i];
-    sel.appendChild(o);
+    o.value = secs[0]; o.textContent = secs[0]; sel.appendChild(o);
+    fieldSec.style.display = "none";
+  } else {
+    var oDefault = document.createElement("option");
+    oDefault.value = ""; oDefault.textContent = "Elegir seccion"; sel.appendChild(oDefault);
+    for (var i = 0; i < secs.length; i++) {
+      var o = document.createElement("option"); o.value = secs[i]; o.textContent = secs[i];
+      sel.appendChild(o);
+    }
+    fieldSec.style.display = "flex";
   }
 }
 
@@ -413,12 +589,19 @@ function renderUsuarios() {
     var horas = Math.floor(mins / 60);
     var card = document.createElement("div");
     card.className = "usr-card";
+    var appUrl = "https://gabdala13.github.io/stockapp-pedidos-donchiche/";
+    var msgWsp = "Hola " + u.nombre + "! Tu acceso de hoy para el conteo de stock:%0A%0A"
+      + "Link: " + appUrl + "%0A"
+      + "Usuario: " + u.nombre + "%0A"
+      + "Contrasena: " + u.pass + "%0A%0A"
+      + "Abri el link e ingresa con esos datos.";
     card.innerHTML = '<div class="usr-av">' + u.nombre.charAt(0).toUpperCase() + '</div>' +
       '<div class="usr-info">' +
         '<div class="usr-name">' + u.nombre + '</div>' +
         '<div class="usr-meta">' + u.dist + ' - ' + u.sec + ' - ' + u.sucursal + '</div>' +
         '<div class="usr-pass">' + u.pass + '</div>' +
         '<div class="usr-timer">' + horas + 'h ' + (mins%60) + 'm restantes</div>' +
+        '<a href="https://wa.me/?text=' + msgWsp + '" target="_blank" style="display:inline-flex;align-items:center;gap:5px;margin-top:6px;background:#25D366;color:#fff;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700;text-decoration:none;">📲 Enviar por WhatsApp</a>' +
       '</div>' +
       '<button class="usr-del" data-idx="' + i + '">x</button>';
     lista.appendChild(card);

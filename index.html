@@ -89,9 +89,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
 .prod-code{font-family:var(--mono);font-size:10px;color:var(--verde);font-weight:500}
 .prod-desc{font-size:14px;font-weight:700;margin-top:2px;line-height:1.3;word-break:break-word}
 .qty-wrap{display:flex;align-items:center;gap:6px;flex-shrink:0}
-.qty-btn{width:36px;height:36px;border-radius:9px;border:2px solid var(--border);background:var(--bg);color:var(--verde2);font-size:22px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .1s;flex-shrink:0}
+.qty-btn{display:none}
 .qty-btn:active{background:var(--verde);border-color:var(--verde);color:#fff}
-.qty-inp{width:52px;text-align:center;background:var(--bg);border:2px solid var(--border);border-radius:9px;color:var(--text);font-family:var(--mono);font-size:15px;font-weight:700;padding:7px 4px;outline:none}
+
+.fecha-inp{background:var(--bg);border:2px solid var(--border);border-radius:9px;color:var(--text);font-family:var(--mono);font-size:12px;font-weight:600;padding:7px 4px;outline:none;width:72px;flex-shrink:0}
+.fecha-inp:focus{border-color:var(--verde)}
+.qty-inp{width:52px;text-align:center;background:var(--bg);border:2px solid var(--border);border-radius:9px;color:var(--text);font-family:var(--mono);font-size:15px;font-weight:700;padding:7px 4px;outline:none;-moz-appearance:textfield}
+.qty-inp::-webkit-outer-spin-button,.qty-inp::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .qty-inp:focus{border-color:var(--verde)}
 .fab{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);border:none;border-radius:14px;padding:16px 32px;font-family:var(--font);font-size:16px;font-weight:800;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;z-index:100;box-shadow:0 6px 24px rgba(0,0,0,.2)}
 .fab:active{transform:translateX(-50%) scale(.97)}
@@ -492,6 +496,7 @@ var MAIL_BOT = "botdonchiche@gmail.com";
 var sesion = null;
 var tipoConteo = "";
 var cantidades = {};
+var fechas = {};
 var locEnc = "Central";
 var gondolaEnviada = false;
 
@@ -696,6 +701,7 @@ function mostrarInstruccion() {
 function iniciarConteo(tipo) {
   tipoConteo = tipo;
   cantidades = {};
+  fechas = {};
   var productos = DISTRIBUIDORES[sesion.dist].secciones[sesion.sec];
   var esG = tipo === "gondola";
   document.getElementById("stock-title").textContent = sesion.dist + " - " + sesion.sec;
@@ -713,11 +719,16 @@ function renderProductos(productos) {
     var row = document.createElement("div");
     row.className = "prod-row";
     row.id = "row-" + i;
+    var esGondola = tipoConteo === 'gondola';
     row.innerHTML = '<div class="prod-info"><div class="prod-code">' + p.codigo + '</div><div class="prod-desc">' + p.desc + '</div></div>' +
       '<div class="qty-wrap">' +
         '<button class="qty-btn" data-idx="' + i + '" data-delta="-1">-</button>' +
-        '<input class="qty-inp" type="number" id="qty-' + i + '" value="" placeholder="0" min="0" inputmode="numeric">' +
+        '<div style="display:flex;flex-direction:column;align-items:center;gap:2px">' +
+          '<input class="qty-inp" type="number" id="qty-' + i + '" value="" placeholder="0" min="0" inputmode="numeric">' +
+          '<span style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Unidades</span>' +
+        '</div>' +
         '<button class="qty-btn" data-idx="' + i + '" data-delta="1">+</button>' +
+        (esGondola ? '<div style="display:flex;flex-direction:column;align-items:center;gap:2px"><input class="fecha-inp" type="text" id="fec-' + i + '" placeholder="DD/MM/AA" maxlength="8" inputmode="numeric"><span style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Vencimiento</span></div>' : '') +
       '</div>';
     list.appendChild(row);
   });
@@ -738,6 +749,20 @@ function renderProductos(productos) {
     });
     inp.addEventListener("focus", function() { this.select(); });
   });
+  list.querySelectorAll(".fecha-inp").forEach(function(inp) {
+    inp.addEventListener("input", function() {
+      var v = this.value.replace(/[^0-9]/g, '');
+      if (v.length >= 3 && v.length <= 4) v = v.slice(0,2) + '/' + v.slice(2);
+      else if (v.length >= 5) v = v.slice(0,2) + '/' + v.slice(2,4) + '/' + v.slice(4,6);
+      this.value = v;
+      var idx = parseInt(this.id.replace("fec-", ""));
+      setFecha(idx, this.value);
+    });
+  });
+}
+
+function setFecha(idx, val) {
+  fechas[idx] = val;
 }
 
 function setCant(idx, val) {
@@ -782,7 +807,10 @@ function enviarStock() {
   var lineas = ["REPOSITOR:" + sesion.nombre, "FECHA:" + fecha, "HORA:" + hora,
     "SUCURSAL:" + sesion.sucursal, "DISTRIBUIDOR:" + sesion.dist,
     "SECCION:" + sesion.sec, "TIPO:" + tipoConteo, "---", "CODIGO,DESCRIPCION,UNIDADES"];
-  productos.forEach(function(p, i) { lineas.push(p.codigo + "," + p.desc + "," + (cantidades[i] || 0)); });
+  productos.forEach(function(p, i) {
+    var fec = (tipoConteo === 'gondola' && fechas[i]) ? fechas[i] : '';
+    lineas.push(p.codigo + "," + p.desc + "," + (cantidades[i] || 0) + (fec ? "," + fec : ""));
+  });
   var cuerpo = lineas.join("\n");
 
   // Mostrar enviando...

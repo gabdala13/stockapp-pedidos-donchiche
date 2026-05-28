@@ -865,7 +865,11 @@ function verResumen() {
   irA("s-resumen");
 }
 
+var enviando = false;
+
 function enviarStock() {
+  if (enviando) return;
+  enviando = true;
   var productos = DISTRIBUIDORES[sesion.dist].secciones[sesion.sec];
   var cont = Object.values(cantidades).filter(function(v) { return v > 0; }).length;
   var total = Object.values(cantidades).reduce(function(a, b) { return a + b; }, 0);
@@ -924,6 +928,7 @@ function enviarStock() {
     btnConf.disabled = false;
     mostrarExito(esG, productos, cont, total);
   }).catch(function(error) {
+    enviando = false;
     btnConf.textContent = "Confirmar y enviar";
     btnConf.disabled = false;
     alert("Error al enviar. Revisa tu conexion a internet.");

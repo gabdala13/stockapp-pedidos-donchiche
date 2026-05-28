@@ -94,6 +94,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
 
 .fecha-inp{background:var(--bg);border:2px solid var(--border);border-radius:9px;color:var(--text);font-family:var(--mono);font-size:12px;font-weight:600;padding:7px 4px;outline:none;width:72px;flex-shrink:0}
 .fecha-inp:focus{border-color:var(--verde)}
+.fecha-inp.requerida{border-color:var(--danger);background:#fff0f0}
+.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#e03030;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:700;z-index:999;display:none;max-width:90%;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.3)}
 .qty-inp{width:52px;text-align:center;background:var(--bg);border:2px solid var(--border);border-radius:9px;color:var(--text);font-family:var(--mono);font-size:15px;font-weight:700;padding:7px 4px;outline:none;-moz-appearance:textfield}
 .qty-inp::-webkit-outer-spin-button,.qty-inp::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .qty-inp:focus{border-color:var(--verde)}
@@ -114,6 +116,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
 .exito-ring{width:80px;height:80px;border-radius:50%;border:3px solid var(--verde);background:var(--verde3);display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<div class="toast" id="toast"></div>
 <script>emailjs.init("idoZ0uNJAtiILxJQ6");</script>
 </head>
 <body>
@@ -156,8 +159,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
     <div class="form-card">
       <div class="form-title">&#128273; Acceso encargado</div>
       <div class="form-sub">Ingresa tus datos para entrar al panel</div>
-      <div class="field"><label>Tu nombre</label><input type="text" id="enc-nombre" placeholder="Ej: Jorge, Gabriel..."></div>
-      <div class="field"><label>Contrasena maestra</label><input type="password" id="enc-pass" placeholder="&#183;&#183;&#183;&#183;&#183;&#183;&#183;&#183;"></div>
+      <div class="field"><label>Usuario</label><input type="text" id="enc-nombre" placeholder=""></div>
+      <div class="field"><label>Contrasena</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="password" id="enc-pass" placeholder="" style="flex:1;background:var(--bg);border:2px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--font);font-size:15px;font-weight:600;padding:13px 14px;outline:none">
+        <button type="button" id="tog-pass-enc" style="background:var(--verde3);border:2px solid rgba(31,165,53,.2);border-radius:10px;padding:0 14px;height:48px;color:var(--verde2);font-family:var(--font);font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0">👁</button>
+      </div></div>
       <div class="err-msg" id="enc-err">Contrasena incorrecta</div>
     </div>
     <button class="btn btn-verde" id="btn-login-enc">Entrar al panel</button>
@@ -222,7 +229,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
       <div class="form-title">&#128230; Contador de stock</div>
       <div class="form-sub">Ingresa con el usuario que te dio el encargado hoy</div>
       <div class="field"><label>Tu nombre</label><input type="text" id="rep-nombre" placeholder="Ej: Carlos Garcia"></div>
-      <div class="field"><label>Contrasena de hoy</label><input type="password" id="rep-pass" placeholder="&#183;&#183;&#183;&#183;&#183;&#183;"></div>
+      <div class="field"><label>Contrasena</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="password" id="rep-pass" placeholder="" style="flex:1;background:var(--bg);border:2px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--font);font-size:15px;font-weight:600;padding:13px 14px;outline:none">
+        <button type="button" id="tog-pass-rep" style="background:var(--verde3);border:2px solid rgba(31,165,53,.2);border-radius:10px;padding:0 14px;height:48px;color:var(--verde2);font-family:var(--font);font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0">👁</button>
+      </div></div>
       <div class="err-msg" id="rep-err">Usuario o contrasena incorrectos</div>
     </div>
     <button class="btn btn-verde" id="btn-login-rep">Entrar</button>
@@ -491,7 +502,11 @@ var DISTRIBUIDORES = {
   }
 };
 
-var PASS_MAESTRA = "encargado2025";
+var CUENTAS_ENC = {
+  "sucursal1": {pass: "Donchiche#25",   local: "Sucursal", nombre: "Encargado Sucursal"},
+  "central1":  {pass: "Doncentral#69",  local: "Central",  nombre: "Encargado Central"},
+  "admin":     {pass: "Administraciondc1713", local: null, nombre: "Admin"}
+};
 var MAIL_BOT = "botdonchiche@gmail.com";
 var sesion = null;
 var tipoConteo = "";
@@ -620,16 +635,31 @@ function renderUsuarios() {
   });
 }
 
+var encLogueado = null;
+
 function loginEncargado() {
-  var nombre = document.getElementById("enc-nombre").value.trim();
+  var usuario = document.getElementById("enc-nombre").value.trim().toLowerCase();
   var pass = document.getElementById("enc-pass").value;
   var err = document.getElementById("enc-err");
-  if (!nombre) { alert("Ingresa tu nombre"); return; }
-  if (pass === PASS_MAESTRA) {
+  if (!usuario) { alert("Ingresa tu usuario"); return; }
+  var cuenta = CUENTAS_ENC[usuario];
+  if (cuenta && pass === cuenta.pass) {
     err.style.display = "none";
+    encLogueado = {usuario: usuario, local: cuenta.local, nombre: cuenta.nombre};
     document.getElementById("enc-nombre").value = "";
     document.getElementById("enc-pass").value = "";
-    document.getElementById("enc-bienvenida").textContent = "Hola, " + nombre + "!";
+    document.getElementById("enc-bienvenida").textContent = "Hola, " + cuenta.nombre + "!";
+    // Preseleccionar local segun cuenta
+    if (cuenta.local) {
+      locEnc = cuenta.local;
+      if (cuenta.local === "Sucursal") {
+        document.getElementById("tog-l").classList.add("active");
+        document.getElementById("tog-c").classList.remove("active");
+      } else {
+        document.getElementById("tog-c").classList.add("active");
+        document.getElementById("tog-l").classList.remove("active");
+      }
+    }
     syncUsers(function() { renderUsuarios(); });
     irA("s-panel-enc");
   } else {
@@ -720,6 +750,8 @@ function renderProductos(productos) {
     row.className = "prod-row";
     row.id = "row-" + i;
     var esGondola = tipoConteo === 'gondola';
+    var sinVenc = sesion.sinVencimiento || [];
+    var mostrarFecha = esGondola || sinVenc.indexOf(i) >= 0;
     row.innerHTML = '<div class="prod-info"><div class="prod-code">' + p.codigo + '</div><div class="prod-desc">' + p.desc + '</div></div>' +
       '<div class="qty-wrap">' +
         '<button class="qty-btn" data-idx="' + i + '" data-delta="-1">-</button>' +
@@ -728,7 +760,7 @@ function renderProductos(productos) {
           '<span style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Unidades</span>' +
         '</div>' +
         '<button class="qty-btn" data-idx="' + i + '" data-delta="1">+</button>' +
-        (esGondola ? '<div style="display:flex;flex-direction:column;align-items:center;gap:2px"><input class="fecha-inp" type="text" id="fec-' + i + '" placeholder="DD/MM/AA" maxlength="8" inputmode="numeric"><span style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Vencimiento</span></div>' : '') +
+        (mostrarFecha ? '<div style="display:flex;flex-direction:column;align-items:center;gap:2px"><input class="fecha-inp" type="text" id="fec-' + i + '" placeholder="DD/MM/AA" maxlength="8" inputmode="numeric"><span style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Vencimiento</span></div>' : '') +
       '</div>';
     list.appendChild(row);
   });
@@ -747,7 +779,11 @@ function renderProductos(productos) {
       var idx = parseInt(this.id.replace("qty-", ""));
       setCant(idx, this.value);
     });
-    inp.addEventListener("focus", function() { this.select(); });
+    inp.addEventListener("focus", function() {
+      this.select();
+      var idx = parseInt(this.id.replace('qty-', ''));
+      verificarVencimientoAnterior(idx);
+    });
   });
   list.querySelectorAll(".fecha-inp").forEach(function(inp) {
     inp.addEventListener("input", function() {
@@ -761,13 +797,45 @@ function renderProductos(productos) {
   });
 }
 
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  setTimeout(function() { t.style.display = 'none'; }, 3000);
+}
+
 function setFecha(idx, val) {
   fechas[idx] = val;
+  var inp = document.getElementById('fec-' + idx);
+  if (inp) inp.classList.remove('requerida');
+}
+
+var ultimoConUnidades = -1;
+
+function verificarVencimientoAnterior(idxActual) {
+  if (ultimoConUnidades >= 0 && ultimoConUnidades !== idxActual) {
+    var prod = DISTRIBUIDORES[sesion.dist].secciones[sesion.sec][ultimoConUnidades];
+    if ((cantidades[ultimoConUnidades] || 0) > 0 && !fechas[ultimoConUnidades]) {
+      showToast('⚠️ Falta vencimiento en ' + prod.desc.split(' ').slice(0,3).join(' ') + ' — no podrás enviar sin completarlo');
+      var inp = document.getElementById('fec-' + ultimoConUnidades);
+      if (inp) inp.classList.add('requerida');
+    }
+  }
 }
 
 function setCant(idx, val) {
   var v = Math.max(0, parseInt(val) || 0);
   cantidades[idx] = v;
+  if (tipoConteo === 'gondola') {
+    var inp = document.getElementById('fec-' + idx);
+    if (inp) {
+      if (v > 0 && !fechas[idx]) {
+        inp.classList.add('requerida');
+      } else {
+        inp.classList.remove('requerida');
+      }
+    }
+    if (v > 0) ultimoConUnidades = idx;
+  }
   var row = document.getElementById("row-" + idx);
   var cls = tipoConteo === "gondola" ? "counted" : "counted-y";
   row.className = "prod-row" + (v > 0 ? " " + cls : "");
@@ -833,11 +901,18 @@ function enviarStock() {
     productos:    lineasProd.join("\n")
   }).then(function() {
     if (esG) {
+      // Guardar indices de productos con unidades pero sin vencimiento
+      var productos = DISTRIBUIDORES[sesion.dist].secciones[sesion.sec];
+      var sinVenc = [];
+      for (var i = 0; i < productos.length; i++) {
+        if ((cantidades[i] || 0) > 0 && !fechas[i]) sinVenc.push(i);
+      }
       syncUsers(function(arr2) {
         for (var i = 0; i < arr2.length; i++) {
           if (arr2[i].nombre.toLowerCase() === sesion.nombre.toLowerCase() && arr2[i].pass === sesion.pass) {
             arr2[i].gondolaLista = true;
-            sesion = arr2[i]; // actualizar sesion local tambien
+            arr2[i].sinVencimiento = sinVenc;
+            sesion = arr2[i];
             break;
           }
         }
@@ -904,14 +979,32 @@ document.addEventListener("DOMContentLoaded", function() {
 
   // Toggle sucursal/local
   document.getElementById("tog-c").addEventListener("click", function() {
+    if (encLogueado && encLogueado.local && encLogueado.local !== "Central") {
+      if (!confirm("Tu local es " + encLogueado.local + ". ¿Querés asignar un contador a Central de todas formas?")) return;
+    }
     locEnc = "Central";
     document.getElementById("tog-c").classList.add("active");
     document.getElementById("tog-l").classList.remove("active");
   });
   document.getElementById("tog-l").addEventListener("click", function() {
+    if (encLogueado && encLogueado.local && encLogueado.local !== "Sucursal") {
+      if (!confirm("Tu local es " + encLogueado.local + ". ¿Querés asignar un contador a Sucursal de todas formas?")) return;
+    }
     locEnc = "Sucursal";
     document.getElementById("tog-l").classList.add("active");
     document.getElementById("tog-c").classList.remove("active");
+  });
+
+  // Mostrar/ocultar contraseña
+  document.getElementById("tog-pass-enc").addEventListener("click", function() {
+    var inp = document.getElementById("enc-pass");
+    inp.type = inp.type === "password" ? "text" : "password";
+    this.textContent = inp.type === "password" ? "👁" : "🙈";
+  });
+  document.getElementById("tog-pass-rep").addEventListener("click", function() {
+    var inp = document.getElementById("rep-pass");
+    inp.type = inp.type === "password" ? "text" : "password";
+    this.textContent = inp.type === "password" ? "👁" : "🙈";
   });
 
   document.getElementById("btn-enc").addEventListener("click", function() { irA("s-login-enc"); });
@@ -925,7 +1018,24 @@ document.addEventListener("DOMContentLoaded", function() {
   document.getElementById("btn-crear-usr").addEventListener("click", crearUsuario);
   document.getElementById("btn-comenzar-gondola").addEventListener("click", function() { iniciarConteo("gondola"); });
   document.getElementById("btn-comenzar-deposito").addEventListener("click", function() { iniciarConteo("deposito"); });
-  document.getElementById("fab-enviar").addEventListener("click", verResumen);
+  document.getElementById("fab-enviar").addEventListener("click", function() {
+  if (tipoConteo === 'gondola') {
+    var productos = DISTRIBUIDORES[sesion.dist].secciones[sesion.sec];
+    var faltantes = [];
+    for (var i = 0; i < productos.length; i++) {
+      if ((cantidades[i] || 0) > 0 && !fechas[i]) {
+        faltantes.push(productos[i].desc.split(' ').slice(0,3).join(' '));
+        var inp = document.getElementById('fec-' + i);
+        if (inp) inp.classList.add('requerida');
+      }
+    }
+    if (faltantes.length > 0) {
+      showToast('⚠️ Falta vencimiento en: ' + faltantes.slice(0,2).join(', ') + (faltantes.length > 2 ? ' y ' + (faltantes.length-2) + ' más' : ''));
+      return;
+    }
+  }
+  verResumen();
+});
   document.getElementById("btn-confirmar").addEventListener("click", enviarStock);
   document.getElementById("btn-volver-stock").addEventListener("click", function() { irA("s-stock"); });
   document.getElementById("btn-ir-deposito").addEventListener("click", function() { irA("s-inst-deposito"); });

@@ -124,6 +124,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
 </head>
 <body>
 
+<!-- MODAL CONFIRMACION (funciona en PWA/standalone, a diferencia de confirm() nativo) -->
+<div id="modal-confirm" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;padding:24px">
+  <div style="background:var(--white);border-radius:18px;padding:26px 22px;max-width:340px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3);text-align:center">
+    <div style="font-size:44px;line-height:1;margin-bottom:12px">&#9888;&#65039;</div>
+    <div id="modal-confirm-titulo" style="font-size:18px;font-weight:900;color:var(--text);margin-bottom:8px">No cargaste ninguna unidad</div>
+    <div id="modal-confirm-texto" style="font-size:14px;font-weight:600;color:var(--text2);line-height:1.5;margin-bottom:20px">Todos los productos quedaron en 0. ¿Estás seguro de que quieres mandar el stock?</div>
+    <button id="modal-confirm-si" class="btn btn-verde" style="margin-bottom:8px">Sí, enviar igual</button>
+    <button id="modal-confirm-no" class="btn btn-ghost">No, volver a revisar</button>
+  </div>
+</div>
+
 <!-- INICIO -->
 <div class="screen active" id="s-inicio">
   <div class="logo-header">
@@ -1084,7 +1095,7 @@ function loginEncargado() {
   var usuario = document.getElementById("enc-nombre").value.trim().toLowerCase();
   var pass = document.getElementById("enc-pass").value;
   var err = document.getElementById("enc-err");
-  if (!usuario) { alert("Ingresa tu usuario"); return; }
+  if (!usuario) { showToast("Ingresa tu usuario"); return; }
   var cuenta = CUENTAS_ENC[usuario];
   if (cuenta && pass === cuenta.pass) {
     err.style.display = "none";
@@ -1115,7 +1126,7 @@ function crearUsuario() {
   var pass = document.getElementById("new-pass").value.trim();
   var dist = document.getElementById("new-dist").value;
   var sec = document.getElementById("new-sec").value;
-  if (!nombre || !pass || !dist || !sec) { alert("Completa todos los campos"); return; }
+  if (!nombre || !pass || !dist || !sec) { showToast("Completa todos los campos"); return; }
   var arr = getUsers();
   arr.push({nombre:nombre, pass:pass, dist:dist, sec:sec, sucursal:locEnc, expira:Date.now()+24*60*60*1000, gondolaLista:false});
   setUsers(arr);
@@ -1312,6 +1323,39 @@ var enviando = false;
 
 function enviarStock() {
   if (enviando) return;
+  var total = Object.values(cantidades).reduce(function(a, b) { return a + b; }, 0);
+
+  // Si no hay nada contado, mostrar modal de confirmación (funciona en PWA)
+  if (total === 0) {
+    mostrarModalConfirm(function(confirmado) {
+      if (confirmado) procederEnvio();
+    });
+    return;
+  }
+  procederEnvio();
+}
+
+function mostrarModalConfirm(callback, titulo, texto, txtSi, txtNo) {
+  var modal = document.getElementById("modal-confirm");
+  document.getElementById("modal-confirm-titulo").textContent = titulo || "No cargaste ninguna unidad";
+  document.getElementById("modal-confirm-texto").textContent = texto || "Todos los productos quedaron en 0. ¿Estás seguro de que quieres mandar el stock?";
+  document.getElementById("modal-confirm-si").textContent = txtSi || "Sí, enviar igual";
+  document.getElementById("modal-confirm-no").textContent = txtNo || "No, volver a revisar";
+  modal.style.display = "flex";
+  var btnSi = document.getElementById("modal-confirm-si");
+  var btnNo = document.getElementById("modal-confirm-no");
+  function cerrar(resultado) {
+    modal.style.display = "none";
+    btnSi.onclick = null;
+    btnNo.onclick = null;
+    callback(resultado);
+  }
+  btnSi.onclick = function() { cerrar(true); };
+  btnNo.onclick = function() { cerrar(false); };
+}
+
+function procederEnvio() {
+  if (enviando) return;
   enviando = true;
   var productos = DISTRIBUIDORES[sesion.dist].secciones[sesion.sec];
   var cont = Object.values(cantidades).filter(function(v) { return v > 0; }).length;
@@ -1319,22 +1363,6 @@ function enviarStock() {
   var fecha = new Date().toLocaleDateString("es-AR");
   var hora = new Date().toLocaleTimeString("es-AR", {hour:"2-digit", minute:"2-digit"});
   var esG = tipoConteo === "gondola";
-  var lineas = ["REPOSITOR:" + sesion.nombre, "FECHA:" + fecha, "HORA:" + hora,
-    "SUCURSAL:" + sesion.sucursal, "DISTRIBUIDOR:" + sesion.dist,
-    "SECCION:" + sesion.sec, "TIPO:" + tipoConteo, "---", "CODIGO,DESCRIPCION,UNIDADES"];
-  productos.forEach(function(p, i) {
-    var fec = (tipoConteo === 'gondola' && fechas[i]) ? fechas[i] : '';
-    lineas.push(p.codigo + "," + p.desc + "," + (cantidades[i] || 0) + (fec ? "," + fec : ""));
-  });
-  var cuerpo = lineas.join("\n");
-
-  // Validación: si no hay nada contado, pedir confirmación
-  if (total === 0) {
-    if (!confirm("No cargaste ninguna unidad. ¿Estás seguro de que quieres mandar el stock?")) {
-      enviando = false;
-      return;
-    }
-  }
 
   // Mostrar enviando...
   var btnConf = document.getElementById("btn-confirmar");
@@ -1343,7 +1371,10 @@ function enviarStock() {
 
   // Armar lista de productos como texto plano
   var lineasProd = [];
-  productos.forEach(function(p, i) { lineasProd.push(p.codigo + "," + p.desc + "," + (cantidades[i] || 0)); });
+  productos.forEach(function(p, i) {
+    var fec = fechas[i] ? fechas[i] : '';
+    lineasProd.push(p.codigo + "," + p.desc + "," + (cantidades[i] || 0) + (fec ? "," + fec : ""));
+  });
 
   emailjs.send("service_w2kud47", "template_xg5bc0d", {
     repositor:    sesion.nombre,
@@ -1367,6 +1398,7 @@ function enviarStock() {
           if (arr2[i].nombre.toLowerCase() === sesion.nombre.toLowerCase() && arr2[i].pass === sesion.pass) {
             arr2[i].gondolaLista = true;
             arr2[i].sinVencimiento = sinVenc;
+            arr2[i].expira = Date.now() + 72*60*60*1000; // Extiende 72h tras enviar gondola (deposito al otro dia)
             sesion = arr2[i];
             break;
           }
@@ -1375,6 +1407,7 @@ function enviarStock() {
       });
       gondolaEnviada = true;
     }
+    enviando = false;
     btnConf.textContent = "Confirmar y enviar";
     btnConf.disabled = false;
     mostrarExito(esG, productos, cont, total);
@@ -1382,7 +1415,7 @@ function enviarStock() {
     enviando = false;
     btnConf.textContent = "Confirmar y enviar";
     btnConf.disabled = false;
-    alert("Error al enviar. Revisa tu conexion a internet.");
+    showToast("Error al enviar. Revisa tu conexion a internet.");
     console.error(error);
   });
 }
@@ -1436,7 +1469,13 @@ document.addEventListener("DOMContentLoaded", function() {
   // Toggle sucursal/local
   document.getElementById("tog-c").addEventListener("click", function() {
     if (encLogueado && encLogueado.local && encLogueado.local !== "Central") {
-      if (!confirm("Tu local es " + encLogueado.local + ". ¿Querés asignar un contador a Central de todas formas?")) return;
+      mostrarModalConfirm(function(ok) {
+        if (!ok) return;
+        locEnc = "Central";
+        document.getElementById("tog-c").classList.add("active");
+        document.getElementById("tog-l").classList.remove("active");
+      }, "Confirmar asignación", "Tu local es " + encLogueado.local + ". ¿Querés asignar un contador a Central de todas formas?", "Sí, asignar", "Cancelar");
+      return;
     }
     locEnc = "Central";
     document.getElementById("tog-c").classList.add("active");
@@ -1444,7 +1483,13 @@ document.addEventListener("DOMContentLoaded", function() {
   });
   document.getElementById("tog-l").addEventListener("click", function() {
     if (encLogueado && encLogueado.local && encLogueado.local !== "Sucursal") {
-      if (!confirm("Tu local es " + encLogueado.local + ". ¿Querés asignar un contador a Sucursal de todas formas?")) return;
+      mostrarModalConfirm(function(ok) {
+        if (!ok) return;
+        locEnc = "Sucursal";
+        document.getElementById("tog-l").classList.add("active");
+        document.getElementById("tog-c").classList.remove("active");
+      }, "Confirmar asignación", "Tu local es " + encLogueado.local + ". ¿Querés asignar un contador a Sucursal de todas formas?", "Sí, asignar", "Cancelar");
+      return;
     }
     locEnc = "Sucursal";
     document.getElementById("tog-l").classList.add("active");

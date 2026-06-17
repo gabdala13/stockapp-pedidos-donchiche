@@ -118,9 +118,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
 .ok-msg{color:var(--verde);font-size:13px;font-weight:700;text-align:center;display:none;padding:8px 12px;background:var(--verde3);border-radius:8px;border:1.5px solid rgba(31,165,53,.2)}
 .exito-ring{width:80px;height:80px;border-radius:50%;border:3px solid var(--verde);background:var(--verde3);display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <div class="toast" id="toast"></div>
-<script>emailjs.init("idoZ0uNJAtiILxJQ6");</script>
 </head>
 <body>
 
@@ -1000,6 +998,7 @@ function irA(id) {
 
 // ── FIREBASE ──
 var DB_URL = "https://stockapp-donchiche-default-rtdb.firebaseio.com/usuarios.json";
+var CONTEOS_URL = "https://stockapp-donchiche-default-rtdb.firebaseio.com/conteos.json";
 
 function getUsers() {
   // Lectura sincronica desde cache local (se actualiza con syncUsers)
@@ -1204,11 +1203,45 @@ function mostrarInstruccion() {
   }
 }
 
+function claveConteo() {
+  if (!sesion) return null;
+  return "conteo:" + sesion.nombre + ":" + sesion.dist + ":" + sesion.sec + ":" + tipoConteo;
+}
+
+function guardarConteo() {
+  try {
+    var k = claveConteo();
+    if (k) localStorage.setItem(k, JSON.stringify({cantidades: cantidades, fechas: fechas}));
+  } catch(e) {}
+}
+
+function cargarConteoGuardado() {
+  try {
+    var k = claveConteo();
+    if (!k) return null;
+    var raw = localStorage.getItem(k);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e) { return null; }
+}
+
+function borrarConteoGuardado() {
+  try {
+    var k = claveConteo();
+    if (k) localStorage.removeItem(k);
+  } catch(e) {}
+}
+
 function iniciarConteo(tipo) {
   tipoConteo = tipo;
+  enviando = false;  // Resetear flag al empezar a contar (evita duplicados tras enviar)
   cantidades = {};
   fechas = {};
-  enviando = false;  // Resetear flag al empezar a contar (evita duplicados tras enviar)
+  // Restaurar conteo guardado (si recargaron la pagina a mitad de camino)
+  var guardado = cargarConteoGuardado();
+  if (guardado) {
+    if (guardado.cantidades) for (var kc in guardado.cantidades) cantidades[parseInt(kc)] = guardado.cantidades[kc];
+    if (guardado.fechas) for (var kf in guardado.fechas) fechas[parseInt(kf)] = guardado.fechas[kf];
+  }
   var productos = DISTRIBUIDORES[sesion.dist].secciones[sesion.sec];
   var esG = tipo === "gondola";
   document.getElementById("stock-title").textContent = sesion.dist + " - " + sesion.sec;
@@ -1224,20 +1257,23 @@ function renderProductos(productos) {
   list.innerHTML = "";
   productos.forEach(function(p, i) {
     var row = document.createElement("div");
-    row.className = "prod-row";
-    row.id = "row-" + i;
     var esGondola = tipoConteo === 'gondola';
     var sinVenc = sesion.sinVencimiento || [];
     var mostrarFecha = esGondola || sinVenc.indexOf(i) >= 0;
+    var valCant = (cantidades[i] && cantidades[i] > 0) ? cantidades[i] : '';
+    var valFec = fechas[i] ? fechas[i] : '';
+    var clsCounted = (cantidades[i] && cantidades[i] > 0) ? (esGondola ? " counted" : " counted-y") : "";
+    row.className = "prod-row" + clsCounted;
+    row.id = "row-" + i;
     row.innerHTML = '<div class="prod-info"><div class="prod-code">' + p.codigo + '</div><div class="prod-desc">' + p.desc + '</div></div>' +
       '<div class="qty-wrap">' +
         '<button class="qty-btn" data-idx="' + i + '" data-delta="-1">-</button>' +
         '<div style="display:flex;flex-direction:column;align-items:center;gap:2px">' +
-          '<input class="qty-inp" type="number" id="qty-' + i + '" value="" placeholder="0" min="0" inputmode="numeric">' +
+          '<input class="qty-inp" type="number" id="qty-' + i + '" value="' + valCant + '" placeholder="0" min="0" inputmode="numeric">' +
           '<span style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Unidades</span>' +
         '</div>' +
         '<button class="qty-btn" data-idx="' + i + '" data-delta="1">+</button>' +
-        (mostrarFecha ? '<div style="display:flex;flex-direction:column;align-items:center;gap:2px"><input class="fecha-inp" type="text" id="fec-' + i + '" placeholder="DD/MM/AA" maxlength="8" inputmode="numeric"><span style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Vencimiento</span></div>' : '') +
+        (mostrarFecha ? '<div style="display:flex;flex-direction:column;align-items:center;gap:2px"><input class="fecha-inp" type="text" id="fec-' + i + '" value="' + valFec + '" placeholder="DD/MM/AA" maxlength="8" inputmode="numeric"><span style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em">Vencimiento</span></div>' : '') +
       '</div>';
     list.appendChild(row);
   });
@@ -1286,6 +1322,7 @@ function setFecha(idx, val) {
   fechas[idx] = val;
   var inp = document.getElementById('fec-' + idx);
   if (inp) inp.classList.remove('requerida');
+  guardarConteo();
 }
 
 var ultimoConUnidades = -1;
@@ -1319,6 +1356,7 @@ function setCant(idx, val) {
   var cls = tipoConteo === "gondola" ? "counted" : "counted-y";
   row.className = "prod-row" + (v > 0 ? " " + cls : "");
   actualizarProgreso(DISTRIBUIDORES[sesion.dist].secciones[sesion.sec]);
+  guardarConteo();
 }
 
 function actualizarProgreso(productos) {
@@ -1398,23 +1436,36 @@ function procederEnvio() {
   btnConf.textContent = "Enviando...";
   btnConf.disabled = true;
 
-  // Armar lista de productos como texto plano
-  var lineasProd = [];
+  // Armar lista de productos (estructurada)
+  var productosData = [];
   productos.forEach(function(p, i) {
-    var fec = fechas[i] ? fechas[i] : '';
-    lineasProd.push(p.codigo + "," + p.desc + "," + (cantidades[i] || 0) + (fec ? "," + fec : ""));
+    productosData.push({
+      codigo: p.codigo,
+      desc: p.desc,
+      unidades: cantidades[i] || 0,
+      vencimiento: fechas[i] || ""
+    });
   });
 
-  emailjs.send("service_w2kud47", "template_xg5bc0d", {
-    repositor:    sesion.nombre,
-    fecha:        fecha,
-    hora:         hora,
-    sucursal:     sesion.sucursal,
-    distribuidor: sesion.dist,
-    seccion:      sesion.sec,
-    tipo:         tipoConteo,
-    productos:    lineasProd.join("\n")
+  fetch(CONTEOS_URL, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      repositor:    sesion.nombre,
+      fecha:        fecha,
+      hora:         hora,
+      sucursal:     sesion.sucursal,
+      distribuidor: sesion.dist,
+      seccion:      sesion.sec,
+      tipo:         tipoConteo,
+      ts:           Date.now(),
+      productos:    productosData
+    })
+  }).then(function(r) {
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
   }).then(function() {
+    borrarConteoGuardado();  // El conteo ya se envió: limpiar el guardado local
     if (esG) {
       // Guardar indices de productos con unidades pero sin vencimiento
       var productos = DISTRIBUIDORES[sesion.dist].secciones[sesion.sec];
@@ -1461,13 +1512,8 @@ function procederEnvio() {
     enviando = false;
     btnConf.textContent = "Confirmar y enviar";
     btnConf.disabled = false;
-    var detalle = "";
-    if (error) {
-      if (error.status) detalle += " [" + error.status + "]";
-      if (error.text) detalle += " " + error.text;
-    }
-    showToast("Error al enviar." + (detalle || " Revisa tu conexion."));
-    console.error("EmailJS error:", error);
+    showToast("Error al enviar. Revisa tu conexion a internet.");
+    console.error("Firebase error:", error);
   });
 }
 

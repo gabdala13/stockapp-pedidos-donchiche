@@ -119,6 +119,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
 .exito-ring{width:80px;height:80px;border-radius:50%;border:3px solid var(--verde);background:var(--verde3);display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto}
 </style>
 <div class="toast" id="toast"></div>
+<style>
+.adm-ic{background:var(--verde3);border:2px solid rgba(31,165,53,.2);border-radius:8px;padding:5px 9px;color:var(--verde2);font-family:var(--font);font-size:13px;font-weight:800;cursor:pointer;flex-shrink:0;line-height:1}
+.adm-ic[data-act^="del"]{background:#fde8e8;border-color:#f0b0b0;color:#c00}
+</style>
 </head>
 <body>
 
@@ -257,6 +261,36 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
   </div>
 </div>
 
+<!-- ADMIN: catalogo de productos (solo usuario admin) -->
+<div class="screen" id="s-admin">
+  <div class="logo-header" style="padding:18px 22px">
+    <div class="enc-bar-text">🛠️ Administrar productos</div>
+  </div>
+  <div class="sbody" style="padding-top:12px">
+    <div class="sec-label">Subir Excel de proveedor</div>
+    <div class="form-card">
+      <div class="form-sub" style="margin-bottom:10px">Subi el Excel tal como lo armas. Detecta proveedor, secciones, codigos y articulos solo. Despues confirmas antes de guardar.</div>
+      <input type="file" id="admin-file" accept=".xlsx,.xls" style="display:none">
+      <button class="btn btn-verde" id="btn-subir-excel" style="font-size:16px">📄 Elegir Excel</button>
+    </div>
+
+    <!-- Vista previa de la importacion -->
+    <div id="admin-preview" style="display:none">
+      <div class="sec-label">Vista previa — confirma antes de guardar</div>
+      <div id="admin-preview-list"></div>
+      <button class="btn btn-amarillo" id="btn-confirmar-import">✓ Guardar en el catalogo</button>
+      <button class="btn btn-ghost" id="btn-cancelar-import">Cancelar</button>
+    </div>
+
+    <div class="sep"></div>
+    <div class="sec-label">Proveedores cargados</div>
+    <div id="admin-catalogo"></div>
+
+    <div class="sep"></div>
+    <button class="btn btn-ghost" id="btn-salir-admin">Salir</button>
+  </div>
+</div>
+
 <!-- LOGIN CONTADOR -->
 <div class="screen" id="s-login-rep">
   <div class="logo-header" style="padding:20px 24px">
@@ -364,6 +398,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 var DISTRIBUIDORES = {
   "DUNBER (Coca Cola)": {
@@ -1012,7 +1047,7 @@ var DISTRIBUIDORES = {
 var CUENTAS_ENC = {
   "sucursal1": {pass: "Donchiche#25",   local: "Sucursal", nombre: "Encargado Sucursal"},
   "central1":  {pass: "Doncentral#69",  local: "Central",  nombre: "Encargado Central"},
-  "admin":     {pass: "Administraciondc1713", local: null, nombre: "Admin"}
+  "admin":     {pass: "Superchiche1713#", local: null, nombre: "Admin"}
 };
 var MAIL_BOT = "botdonchiche@gmail.com";
 var sesion = null;
@@ -1082,6 +1117,270 @@ function syncUsers(callback) {
 function generarPass() {
   var p = ["sol","luna","verde","chiche","super","mar","pan","sal","rio","luz"];
   document.getElementById("new-pass").value = p[Math.floor(Math.random()*p.length)] + (Math.floor(Math.random()*900)+100);
+}
+
+// ── CATALOGO EN FIREBASE (proveedores y articulos) ──
+var CATALOGO_URL = "https://stockapp-donchiche-default-rtdb.firebaseio.com/catalogo.json";
+var catalogoCargado = false;
+
+// Firebase puede devolver listas como objetos {0:..,1:..}; las volvemos arrays limpios
+function normalizarCatalogo(cat) {
+  var out = {};
+  Object.keys(cat || {}).forEach(function(prov) {
+    var secs = (cat[prov] && cat[prov].secciones) || {};
+    out[prov] = { secciones: {} };
+    Object.keys(secs).forEach(function(sec) {
+      var lista = secs[sec];
+      if (!Array.isArray(lista)) lista = Object.values(lista || {});
+      out[prov].secciones[sec] = lista.filter(Boolean).map(function(p) {
+        return { codigo: String(p.codigo), desc: String(p.desc) };
+      });
+    });
+  });
+  return out;
+}
+
+function cargarCatalogo(cb) {
+  fetch(CATALOGO_URL).then(function(r){ return r.json(); }).then(function(data){
+    if (data && typeof data === "object" && Object.keys(data).length) {
+      DISTRIBUIDORES = normalizarCatalogo(data);
+    } else {
+      // Primera vez: sembrar Firebase con el catalogo embebido (no se pierde nada)
+      fetch(CATALOGO_URL, {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify(DISTRIBUIDORES)});
+    }
+    catalogoCargado = true;
+    if (cb) cb();
+  }).catch(function(e){
+    console.error("Catalogo read error:", e);
+    catalogoCargado = true;   // sin internet: usa el catalogo embebido como respaldo
+    if (cb) cb();
+  });
+}
+
+function guardarCatalogo(cb) {
+  fetch(CATALOGO_URL, {method:"PUT", headers:{"Content-Type":"application/json"}, body: JSON.stringify(DISTRIBUIDORES)})
+    .then(function(){ if (cb) cb(true); })
+    .catch(function(e){ console.error("Catalogo write error:", e); if (cb) cb(false); });
+}
+
+// Firebase no permite estos caracteres en las claves
+function sanKey(s) { return String(s).replace(/[.#$\[\]\/]/g, " ").replace(/\s+/g, " ").trim(); }
+function escAttr(s) { return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
+
+function poblarDistribuidores() {
+  var sel = document.getElementById("new-dist");
+  var actual = sel.value;
+  sel.innerHTML = '<option value="">Elegir distribuidor</option>';
+  Object.keys(DISTRIBUIDORES).forEach(function(d) {
+    var o = document.createElement("option"); o.value = d; o.textContent = d; sel.appendChild(o);
+  });
+  if (actual && DISTRIBUIDORES[actual]) sel.value = actual;
+}
+
+// ════════ ADMINISTRACION DE CATALOGO (solo usuario admin) ════════
+function abrirAdmin() {
+  cargarCatalogo(function() { poblarDistribuidores(); renderAdminCatalogo(); });
+  document.getElementById("admin-preview").style.display = "none";
+  irA("s-admin");
+}
+
+// ── Lectura inteligente del Excel ──
+function esCodigoExcel(v) {
+  if (typeof v === "number" && isFinite(v)) return String(Math.trunc(v));
+  if (typeof v === "string") {
+    var t = v.trim();
+    if (/^\d{3,8}$/.test(t)) return t;
+    if (/^\d{3,8}\.0+$/.test(t)) return t.split(".")[0];
+    if (/^[A-Za-z]{2,4}\d{6,}$/.test(t)) return t.toUpperCase();
+  }
+  return null;
+}
+var ENCAB_EXCEL = {"articulos":1,"articulo":1,"codigo":1,"codigos":1,"cod":1,"fecha":1,"stock":1,"pedido":1,"p":1,"s":1,"":1,"none":1};
+function detectarProvSecExcel(titulo, hoja) {
+  var t = (titulo || "").trim();
+  var m = t.match(/^(.+?)\s*\((.+?)\)\s*$/);
+  if (m) return { prov: m[1].trim(), sec: m[2].trim() };
+  var prov = t.replace(/^\s*stock\s+(de\s+)?/i, "").trim() || t;
+  var hl = (hoja || "").trim().toLowerCase();
+  var sec = (["hoja1","sistema","hoja 1","sheet1",""].indexOf(hl) >= 0) ? "General" : hoja.trim();
+  return { prov: prov, sec: sec };
+}
+function parsearExcel(buffer) {
+  var wb = XLSX.read(buffer, { type: "array" });
+  var bloques = [];
+  wb.SheetNames.forEach(function(name) {
+    var rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: null });
+    var titulo = null;
+    for (var i = 0; i < Math.min(rows.length, 4); i++) {
+      var a0 = rows[i] && rows[i][0];
+      if (typeof a0 === "string" && a0.trim()) { titulo = a0.trim(); break; }
+    }
+    var ps = detectarProvSecExcel(titulo, name);
+    var prods = [], vistos = {};
+    rows.forEach(function(row) {
+      if (!row) return;
+      var a = row[0];
+      var desc = (typeof a === "string") ? a.trim() : null;
+      if (!desc || desc === titulo || ENCAB_EXCEL[desc.toLowerCase()]) return;
+      var cod = null;
+      for (var c = 1; c < row.length; c++) { cod = esCodigoExcel(row[c]); if (cod) break; }
+      if (!cod || vistos[cod]) return;     // sin codigo o codigo repetido en el mismo excel
+      vistos[cod] = 1;
+      prods.push({ codigo: cod, desc: desc });
+    });
+    if (prods.length) bloques.push({ prov: ps.prov, sec: ps.sec, productos: prods });
+  });
+  return bloques;
+}
+function manejarArchivoExcel(file) {
+  if (!file) return;
+  if (typeof XLSX === "undefined") { showToast("No se cargo el lector de Excel (revisa internet)"); return; }
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var bloques = parsearExcel(new Uint8Array(e.target.result));
+      if (!bloques.length) { showToast("No se detectaron articulos en el Excel"); return; }
+      mostrarPreviewImport(bloques);
+    } catch (err) { console.error(err); showToast("No se pudo leer el Excel"); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ── Vista previa de la importacion (editable antes de guardar) ──
+var importBloques = [];
+function mostrarPreviewImport(bloques) {
+  importBloques = bloques;
+  var cont = document.getElementById("admin-preview-list");
+  cont.innerHTML = "";
+  bloques.forEach(function(b, i) {
+    var div = document.createElement("div");
+    div.className = "form-card";
+    div.innerHTML =
+      '<div class="field"><label>Proveedor</label><input type="text" id="imp-prov-' + i + '" value="' + escAttr(b.prov) + '"></div>' +
+      '<div class="field"><label>Seccion</label><input type="text" id="imp-sec-' + i + '" value="' + escAttr(b.sec) + '"></div>' +
+      '<div style="font-size:13px;font-weight:800;color:var(--verde2)">' + b.productos.length + ' articulos detectados</div>';
+    cont.appendChild(div);
+  });
+  document.getElementById("admin-preview").style.display = "block";
+  document.getElementById("admin-preview").scrollIntoView({ behavior: "smooth" });
+}
+function confirmarImport() {
+  var totalProds = 0;
+  for (var i = 0; i < importBloques.length; i++) {
+    var prov = sanKey(document.getElementById("imp-prov-" + i).value);
+    var sec  = sanKey(document.getElementById("imp-sec-" + i).value);
+    if (!prov || !sec) continue;
+    if (!DISTRIBUIDORES[prov]) DISTRIBUIDORES[prov] = { secciones: {} };
+    if (!DISTRIBUIDORES[prov].secciones) DISTRIBUIDORES[prov].secciones = {};
+    var lista = DISTRIBUIDORES[prov].secciones[sec] || [];
+    var pos = {}; lista.forEach(function(p, k) { pos[p.codigo] = k; });
+    importBloques[i].productos.forEach(function(p) {
+      if (pos[p.codigo] !== undefined) lista[pos[p.codigo]] = p;   // actualiza si ya existe
+      else { lista.push(p); pos[p.codigo] = lista.length - 1; }    // o agrega
+      totalProds++;
+    });
+    DISTRIBUIDORES[prov].secciones[sec] = lista;
+  }
+  guardarCatalogo(function(ok) {
+    showToast(ok ? ("✓ Guardado: " + totalProds + " articulos") : "Error al guardar", ok);
+    document.getElementById("admin-preview").style.display = "none";
+    importBloques = [];
+    poblarDistribuidores();
+    renderAdminCatalogo();
+  });
+}
+
+// ── Vista/edicion del catalogo cargado ──
+function renderAdminCatalogo() {
+  var cont = document.getElementById("admin-catalogo");
+  var provs = Object.keys(DISTRIBUIDORES);
+  if (!provs.length) { cont.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:10px">Sin proveedores cargados</div>'; return; }
+  var html = "";
+  provs.forEach(function(prov) {
+    var secs = (DISTRIBUIDORES[prov] && DISTRIBUIDORES[prov].secciones) || {};
+    var totalP = 0; Object.keys(secs).forEach(function(s) { totalP += (secs[s] || []).length; });
+    html += '<div class="form-card" style="margin-bottom:10px">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">' +
+              '<div style="font-weight:800;font-size:15px">' + escAttr(prov) + ' <span style="color:var(--text3);font-weight:600;font-size:12px">(' + totalP + ')</span></div>' +
+              '<div style="display:flex;gap:6px;flex-shrink:0">' +
+                '<button class="adm-ic" data-act="ren-prov" data-prov="' + escAttr(prov) + '">✏️</button>' +
+                '<button class="adm-ic" data-act="del-prov" data-prov="' + escAttr(prov) + '">🗑️</button>' +
+              '</div></div>';
+    Object.keys(secs).forEach(function(sec) {
+      var lista = secs[sec] || [];
+      html += '<div style="margin-top:8px;padding-left:8px;border-left:3px solid var(--border)">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px">' +
+                '<button class="adm-sec-tog" data-prov="' + escAttr(prov) + '" data-sec="' + escAttr(sec) + '" style="background:none;border:none;font-family:var(--font);font-weight:800;font-size:13px;color:var(--verde2);cursor:pointer;text-align:left;flex:1">▸ ' + escAttr(sec) + ' (' + lista.length + ')</button>' +
+                '<button class="adm-ic" data-act="ren-sec" data-prov="' + escAttr(prov) + '" data-sec="' + escAttr(sec) + '">✏️</button>' +
+                '<button class="adm-ic" data-act="del-sec" data-prov="' + escAttr(prov) + '" data-sec="' + escAttr(sec) + '">🗑️</button>' +
+              '</div>';
+      html += '<div class="adm-sec-body" style="display:none;margin-top:6px">';
+      lista.forEach(function(p, idx) {
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)">' +
+                  '<span style="font-size:12px"><b style="font-family:monospace;color:var(--text3)">' + escAttr(p.codigo) + '</b> ' + escAttr(p.desc) + '</span>' +
+                  '<button class="adm-ic" data-act="del-prod" data-prov="' + escAttr(prov) + '" data-sec="' + escAttr(sec) + '" data-idx="' + idx + '">🗑️</button>' +
+                '</div>';
+      });
+      html += '<div style="display:flex;gap:5px;margin-top:7px">' +
+                '<input class="adm-add-cod" placeholder="Codigo" inputmode="numeric" style="width:84px;background:var(--bg);border:2px solid var(--border);border-radius:8px;padding:8px;font-family:var(--font);font-size:12px;font-weight:600">' +
+                '<input class="adm-add-desc" placeholder="Articulo nuevo" style="flex:1;min-width:0;background:var(--bg);border:2px solid var(--border);border-radius:8px;padding:8px;font-family:var(--font);font-size:12px;font-weight:600">' +
+                '<button class="adm-ic" data-act="add-prod" data-prov="' + escAttr(prov) + '" data-sec="' + escAttr(sec) + '">➕</button>' +
+              '</div>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+  });
+  cont.innerHTML = html;
+}
+function persistirCatalogo() {
+  guardarCatalogo(function(ok) {
+    showToast(ok ? "✓ Guardado" : "Error al guardar", ok);
+    poblarDistribuidores();
+    renderAdminCatalogo();
+  });
+}
+function adminCatalogoClick(e) {
+  var btn = e.target.closest ? e.target.closest("button") : null;
+  if (!btn) return;
+  if (btn.classList.contains("adm-sec-tog")) {                 // abrir/cerrar seccion
+    var body = btn.parentElement.nextElementSibling;
+    var abierto = body.style.display !== "none";
+    body.style.display = abierto ? "none" : "block";
+    btn.textContent = (abierto ? "▸ " : "▾ ") + btn.textContent.slice(2);
+    return;
+  }
+  var act = btn.getAttribute("data-act");
+  if (!act) return;
+  var prov = btn.getAttribute("data-prov");
+  var sec = btn.getAttribute("data-sec");
+  if (act === "del-prov") {
+    mostrarModalConfirm(function(ok) { if (!ok) return; delete DISTRIBUIDORES[prov]; persistirCatalogo(); },
+      "Borrar proveedor", "Vas a borrar '" + prov + "' con todos sus articulos. Seguro?", "Si, borrar", "Cancelar");
+  } else if (act === "del-sec") {
+    mostrarModalConfirm(function(ok) { if (!ok) return; if (DISTRIBUIDORES[prov] && DISTRIBUIDORES[prov].secciones) delete DISTRIBUIDORES[prov].secciones[sec]; persistirCatalogo(); },
+      "Borrar seccion", "Borrar la seccion '" + sec + "' de '" + prov + "'?", "Si, borrar", "Cancelar");
+  } else if (act === "del-prod") {
+    var idx = parseInt(btn.getAttribute("data-idx"));
+    DISTRIBUIDORES[prov].secciones[sec].splice(idx, 1);
+    persistirCatalogo();
+  } else if (act === "add-prod") {
+    var wrap = btn.parentElement;
+    var cod = wrap.querySelector(".adm-add-cod").value.trim();
+    var desc = wrap.querySelector(".adm-add-desc").value.trim();
+    if (!cod || !desc) { showToast("Pone codigo y articulo"); return; }
+    DISTRIBUIDORES[prov].secciones[sec].push({ codigo: cod, desc: desc });
+    persistirCatalogo();
+  } else if (act === "ren-prov") {
+    var np = prompt("Nuevo nombre del proveedor:", prov);
+    if (np === null) return; np = sanKey(np); if (!np || np === prov) return;
+    DISTRIBUIDORES[np] = DISTRIBUIDORES[prov]; if (np !== prov) delete DISTRIBUIDORES[prov];
+    persistirCatalogo();
+  } else if (act === "ren-sec") {
+    var ns = prompt("Nuevo nombre de la seccion:", sec);
+    if (ns === null) return; ns = sanKey(ns); if (!ns || ns === sec) return;
+    var ss = DISTRIBUIDORES[prov].secciones; ss[ns] = ss[sec]; if (ns !== sec) delete ss[sec];
+    persistirCatalogo();
+  }
 }
 
 // Paso 1 del panel: elegir que va a hacer (vuelve a mostrar el selector y oculta el form)
@@ -1219,6 +1518,15 @@ function loginUnificado() {
   var pass = document.getElementById("uni-pass").value;
   var err = document.getElementById("uni-err");
   if (!nombreRaw || !pass) { showToast("Completa usuario y contrasena"); return; }
+
+  // 0) Es admin (dueño)? -> pantalla de administracion del catalogo (solo aca se editan proveedores)
+  if (usuario === "admin" && pass === CUENTAS_ENC.admin.pass) {
+    err.style.display = "none";
+    document.getElementById("uni-nombre").value = "";
+    document.getElementById("uni-pass").value = "";
+    abrirAdmin();
+    return;
+  }
 
   // 1) Es encargado? (cuentas fijas)
   var cuenta = CUENTAS_ENC[usuario];
@@ -1827,12 +2135,9 @@ function finalizarSesion() {
 
 // ── EVENT LISTENERS ──
 document.addEventListener("DOMContentLoaded", function() {
-  // Poblar distribuidores
-  var sel = document.getElementById("new-dist");
-  Object.keys(DISTRIBUIDORES).forEach(function(d) {
-    var o = document.createElement("option"); o.value = d; o.textContent = d; sel.appendChild(o);
-  });
-  sel.addEventListener("change", actualizarSecciones);
+  // Cargar catalogo desde Firebase (con respaldo al embebido) y poblar distribuidores
+  cargarCatalogo(function() { poblarDistribuidores(); });
+  document.getElementById("new-dist").addEventListener("change", actualizarSecciones);
 
   // Sincronizar con Firebase al abrir
   syncUsers(function(arr) {
@@ -1907,6 +2212,14 @@ document.addEventListener("DOMContentLoaded", function() {
   document.getElementById("btn-login-enc").addEventListener("click", loginEncargado);
   document.getElementById("btn-login-rep").addEventListener("click", loginRepositor);
   document.getElementById("btn-salir-enc").addEventListener("click", function() { irA("s-inicio"); });
+
+  // Pantalla admin (catalogo de productos)
+  document.getElementById("btn-subir-excel").addEventListener("click", function() { document.getElementById("admin-file").click(); });
+  document.getElementById("admin-file").addEventListener("change", function() { manejarArchivoExcel(this.files[0]); this.value = ""; });
+  document.getElementById("btn-confirmar-import").addEventListener("click", confirmarImport);
+  document.getElementById("btn-cancelar-import").addEventListener("click", function() { document.getElementById("admin-preview").style.display = "none"; importBloques = []; });
+  document.getElementById("admin-catalogo").addEventListener("click", adminCatalogoClick);
+  document.getElementById("btn-salir-admin").addEventListener("click", function() { irA("s-inicio"); });
   document.getElementById("btn-auto-pass").addEventListener("click", generarPass);
   document.getElementById("btn-crear-usr").addEventListener("click", crearUsuario);
   document.getElementById("btn-comenzar-gondola").addEventListener("click", function() { iniciarConteo("gondola"); });

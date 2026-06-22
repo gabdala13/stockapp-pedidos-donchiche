@@ -257,6 +257,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
       <button class="btn btn-amarillo" id="btn-crear-usr">+ Crear contador</button>
       <div class="ok-msg" id="enc-ok">Contador creado correctamente</div>
     </div>
+    <button class="btn btn-amarillo" id="btn-ir-admin" style="display:none">🛠️ Administrar productos</button>
     <button class="btn btn-ghost" id="btn-salir-enc">Salir del panel</button>
   </div>
 </div>
@@ -287,6 +288,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
     <div id="admin-catalogo"></div>
 
     <div class="sep"></div>
+    <button class="btn btn-verde" id="btn-volver-panel">← Volver al panel</button>
     <button class="btn btn-ghost" id="btn-salir-admin">Salir</button>
   </div>
 </div>
@@ -1291,6 +1293,8 @@ function confirmarImport() {
 }
 
 // ── Vista/edicion del catalogo cargado ──
+var adminAbiertas = {};   // secciones expandidas (se preserva al re-renderizar)
+function keySecAdmin(prov, sec) { return prov + "||" + sec; }
 function renderAdminCatalogo() {
   var cont = document.getElementById("admin-catalogo");
   var provs = Object.keys(DISTRIBUIDORES);
@@ -1308,24 +1312,32 @@ function renderAdminCatalogo() {
               '</div></div>';
     Object.keys(secs).forEach(function(sec) {
       var lista = secs[sec] || [];
+      var abierta = !!adminAbiertas[keySecAdmin(prov, sec)];
+      var da0 = 'data-prov="' + escAttr(prov) + '" data-sec="' + escAttr(sec) + '"';
       html += '<div style="margin-top:8px;padding-left:8px;border-left:3px solid var(--border)">';
       html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px">' +
-                '<button class="adm-sec-tog" data-prov="' + escAttr(prov) + '" data-sec="' + escAttr(sec) + '" style="background:none;border:none;font-family:var(--font);font-weight:800;font-size:13px;color:var(--verde2);cursor:pointer;text-align:left;flex:1">▸ ' + escAttr(sec) + ' (' + lista.length + ')</button>' +
-                '<button class="adm-ic" data-act="ren-sec" data-prov="' + escAttr(prov) + '" data-sec="' + escAttr(sec) + '">✏️</button>' +
-                '<button class="adm-ic" data-act="del-sec" data-prov="' + escAttr(prov) + '" data-sec="' + escAttr(sec) + '">🗑️</button>' +
+                '<button class="adm-sec-tog" ' + da0 + ' style="background:none;border:none;font-family:var(--font);font-weight:800;font-size:13px;color:var(--verde2);cursor:pointer;text-align:left;flex:1">' + (abierta ? '▾ ' : '▸ ') + escAttr(sec) + ' (' + lista.length + ')</button>' +
+                '<button class="adm-ic" data-act="ren-sec" ' + da0 + '>✏️</button>' +
+                '<button class="adm-ic" data-act="del-sec" ' + da0 + '>🗑️</button>' +
               '</div>';
-      html += '<div class="adm-sec-body" style="display:none;margin-top:6px">';
-      lista.forEach(function(p, idx) {
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)">' +
-                  '<span style="font-size:12px"><b style="font-family:monospace;color:var(--text3)">' + escAttr(p.codigo) + '</b> ' + escAttr(p.desc) + '</span>' +
-                  '<button class="adm-ic" data-act="del-prod" data-prov="' + escAttr(prov) + '" data-sec="' + escAttr(sec) + '" data-idx="' + idx + '">🗑️</button>' +
+      html += '<div class="adm-sec-body" style="' + (abierta ? '' : 'display:none;') + 'margin-top:6px">';
+      if (abierta) {
+        lista.forEach(function(p, idx) {
+          var da = da0 + ' data-idx="' + idx + '"';
+          html += '<div class="adm-prod-row" style="display:flex;align-items:center;gap:4px;padding:4px 0;border-bottom:1px solid var(--border)">' +
+                    '<span style="flex:1;min-width:0;font-size:12px"><b style="font-family:monospace;color:var(--text3)">' + escAttr(p.codigo) + '</b> ' + escAttr(p.desc) + '</span>' +
+                    '<button class="adm-ic" data-act="up-prod" ' + da + '>▲</button>' +
+                    '<button class="adm-ic" data-act="down-prod" ' + da + '>▼</button>' +
+                    '<button class="adm-ic" data-act="edit-prod" ' + da + '>✏️</button>' +
+                    '<button class="adm-ic" data-act="del-prod" ' + da + '>🗑️</button>' +
+                  '</div>';
+        });
+        html += '<div style="display:flex;gap:5px;margin-top:7px">' +
+                  '<input class="adm-add-cod" placeholder="Codigo" inputmode="numeric" style="width:84px;background:var(--bg);border:2px solid var(--border);border-radius:8px;padding:8px;font-family:var(--font);font-size:12px;font-weight:600">' +
+                  '<input class="adm-add-desc" placeholder="Articulo nuevo" style="flex:1;min-width:0;background:var(--bg);border:2px solid var(--border);border-radius:8px;padding:8px;font-family:var(--font);font-size:12px;font-weight:600">' +
+                  '<button class="adm-ic" data-act="add-prod" ' + da0 + '>➕</button>' +
                 '</div>';
-      });
-      html += '<div style="display:flex;gap:5px;margin-top:7px">' +
-                '<input class="adm-add-cod" placeholder="Codigo" inputmode="numeric" style="width:84px;background:var(--bg);border:2px solid var(--border);border-radius:8px;padding:8px;font-family:var(--font);font-size:12px;font-weight:600">' +
-                '<input class="adm-add-desc" placeholder="Articulo nuevo" style="flex:1;min-width:0;background:var(--bg);border:2px solid var(--border);border-radius:8px;padding:8px;font-family:var(--font);font-size:12px;font-weight:600">' +
-                '<button class="adm-ic" data-act="add-prod" data-prov="' + escAttr(prov) + '" data-sec="' + escAttr(sec) + '">➕</button>' +
-              '</div>';
+      }
       html += '</div></div>';
     });
     html += '</div>';
@@ -1343,16 +1355,16 @@ function adminCatalogoClick(e) {
   var btn = e.target.closest ? e.target.closest("button") : null;
   if (!btn) return;
   if (btn.classList.contains("adm-sec-tog")) {                 // abrir/cerrar seccion
-    var body = btn.parentElement.nextElementSibling;
-    var abierto = body.style.display !== "none";
-    body.style.display = abierto ? "none" : "block";
-    btn.textContent = (abierto ? "▸ " : "▾ ") + btn.textContent.slice(2);
+    var k = keySecAdmin(btn.getAttribute("data-prov"), btn.getAttribute("data-sec"));
+    if (adminAbiertas[k]) delete adminAbiertas[k]; else adminAbiertas[k] = true;
+    renderAdminCatalogo();
     return;
   }
   var act = btn.getAttribute("data-act");
   if (!act) return;
   var prov = btn.getAttribute("data-prov");
   var sec = btn.getAttribute("data-sec");
+  var lista = (prov && sec && DISTRIBUIDORES[prov] && DISTRIBUIDORES[prov].secciones) ? DISTRIBUIDORES[prov].secciones[sec] : null;
   if (act === "del-prov") {
     mostrarModalConfirm(function(ok) { if (!ok) return; delete DISTRIBUIDORES[prov]; persistirCatalogo(); },
       "Borrar proveedor", "Vas a borrar '" + prov + "' con todos sus articulos. Seguro?", "Si, borrar", "Cancelar");
@@ -1360,15 +1372,43 @@ function adminCatalogoClick(e) {
     mostrarModalConfirm(function(ok) { if (!ok) return; if (DISTRIBUIDORES[prov] && DISTRIBUIDORES[prov].secciones) delete DISTRIBUIDORES[prov].secciones[sec]; persistirCatalogo(); },
       "Borrar seccion", "Borrar la seccion '" + sec + "' de '" + prov + "'?", "Si, borrar", "Cancelar");
   } else if (act === "del-prod") {
-    var idx = parseInt(btn.getAttribute("data-idx"));
-    DISTRIBUIDORES[prov].secciones[sec].splice(idx, 1);
+    var idxd = parseInt(btn.getAttribute("data-idx"));
+    if (!lista) return;
+    mostrarModalConfirm(function(ok) { if (!ok) return; lista.splice(idxd, 1); persistirCatalogo(); },
+      "Borrar articulo", "Borrar '" + (lista[idxd] ? lista[idxd].desc : "") + "'?", "Si, borrar", "Cancelar");
+  } else if (act === "up-prod" || act === "down-prod") {
+    var i = parseInt(btn.getAttribute("data-idx"));
+    var j = (act === "up-prod") ? i - 1 : i + 1;
+    if (!lista || j < 0 || j >= lista.length) return;
+    var tmp = lista[i]; lista[i] = lista[j]; lista[j] = tmp;
     persistirCatalogo();
+  } else if (act === "edit-prod") {
+    var ie = parseInt(btn.getAttribute("data-idx"));
+    var p = lista[ie];
+    var rowE = btn.closest(".adm-prod-row");
+    var da = 'data-prov="' + escAttr(prov) + '" data-sec="' + escAttr(sec) + '" data-idx="' + ie + '"';
+    rowE.innerHTML =
+      '<input class="adm-edit-cod" value="' + escAttr(p.codigo) + '" inputmode="numeric" style="width:84px;background:var(--bg);border:2px solid var(--verde);border-radius:8px;padding:7px;font-family:var(--font);font-size:12px;font-weight:600">' +
+      '<input class="adm-edit-desc" value="' + escAttr(p.desc) + '" style="flex:1;min-width:0;background:var(--bg);border:2px solid var(--verde);border-radius:8px;padding:7px;font-family:var(--font);font-size:12px;font-weight:600">' +
+      '<button class="adm-ic" data-act="save-prod" ' + da + '>✓</button>' +
+      '<button class="adm-ic" data-act="cancel-prod">✗</button>';
+    rowE.querySelector(".adm-edit-desc").focus();
+  } else if (act === "save-prod") {
+    var is = parseInt(btn.getAttribute("data-idx"));
+    var rowS = btn.closest(".adm-prod-row");
+    var nc = rowS.querySelector(".adm-edit-cod").value.trim();
+    var nd = rowS.querySelector(".adm-edit-desc").value.trim();
+    if (!nc || !nd) { showToast("Pone codigo y articulo"); return; }
+    lista[is] = { codigo: nc, desc: nd };
+    persistirCatalogo();
+  } else if (act === "cancel-prod") {
+    renderAdminCatalogo();
   } else if (act === "add-prod") {
     var wrap = btn.parentElement;
     var cod = wrap.querySelector(".adm-add-cod").value.trim();
     var desc = wrap.querySelector(".adm-add-desc").value.trim();
     if (!cod || !desc) { showToast("Pone codigo y articulo"); return; }
-    DISTRIBUIDORES[prov].secciones[sec].push({ codigo: cod, desc: desc });
+    lista.push({ codigo: cod, desc: desc });
     persistirCatalogo();
   } else if (act === "ren-prov") {
     var np = prompt("Nuevo nombre del proveedor:", prov);
@@ -1379,6 +1419,7 @@ function adminCatalogoClick(e) {
     var ns = prompt("Nuevo nombre de la seccion:", sec);
     if (ns === null) return; ns = sanKey(ns); if (!ns || ns === sec) return;
     var ss = DISTRIBUIDORES[prov].secciones; ss[ns] = ss[sec]; if (ns !== sec) delete ss[sec];
+    if (adminAbiertas[keySecAdmin(prov, sec)]) { adminAbiertas[keySecAdmin(prov, ns)] = true; delete adminAbiertas[keySecAdmin(prov, sec)]; }
     persistirCatalogo();
   }
 }
@@ -1519,12 +1560,20 @@ function loginUnificado() {
   var err = document.getElementById("uni-err");
   if (!nombreRaw || !pass) { showToast("Completa usuario y contrasena"); return; }
 
-  // 0) Es admin (dueño)? -> pantalla de administracion del catalogo (solo aca se editan proveedores)
+  // 0) Es admin (dueño)? -> panel de encargado (crea contadores) + acceso a administrar productos
   if (usuario === "admin" && pass === CUENTAS_ENC.admin.pass) {
     err.style.display = "none";
     document.getElementById("uni-nombre").value = "";
     document.getElementById("uni-pass").value = "";
-    abrirAdmin();
+    encLogueado = { usuario: "admin", local: null, nombre: "Admin", esAdmin: true };
+    document.getElementById("enc-bienvenida").textContent = "Hola, Admin!";
+    locEnc = "Central";
+    document.getElementById("tog-c").classList.add("active");
+    document.getElementById("tog-l").classList.remove("active");
+    document.getElementById("btn-ir-admin").style.display = "block";   // solo admin
+    mostrarPickerModo();
+    syncUsers(function() { renderUsuarios(); });
+    irA("s-panel-enc");
     return;
   }
 
@@ -1533,6 +1582,7 @@ function loginUnificado() {
   if (cuenta && pass === cuenta.pass) {
     err.style.display = "none";
     encLogueado = {usuario: usuario, local: cuenta.local, nombre: cuenta.nombre};
+    document.getElementById("btn-ir-admin").style.display = "none";   // encargado normal no administra catalogo
     document.getElementById("uni-nombre").value = "";
     document.getElementById("uni-pass").value = "";
     document.getElementById("enc-bienvenida").textContent = "Hola, " + cuenta.nombre + "!";
@@ -2220,6 +2270,8 @@ document.addEventListener("DOMContentLoaded", function() {
   document.getElementById("btn-cancelar-import").addEventListener("click", function() { document.getElementById("admin-preview").style.display = "none"; importBloques = []; });
   document.getElementById("admin-catalogo").addEventListener("click", adminCatalogoClick);
   document.getElementById("btn-salir-admin").addEventListener("click", function() { irA("s-inicio"); });
+  document.getElementById("btn-ir-admin").addEventListener("click", abrirAdmin);
+  document.getElementById("btn-volver-panel").addEventListener("click", function() { irA("s-panel-enc"); });
   document.getElementById("btn-auto-pass").addEventListener("click", generarPass);
   document.getElementById("btn-crear-usr").addEventListener("click", crearUsuario);
   document.getElementById("btn-comenzar-gondola").addEventListener("click", function() { iniciarConteo("gondola"); });

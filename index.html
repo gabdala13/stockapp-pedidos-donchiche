@@ -196,6 +196,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
     </div>
   </div>
   <div class="sbody" style="padding-top:12px">
+    <div class="sec-label">Estado del stock de este mes</div>
+    <div id="tablero-stock"></div>
+    <div class="sep"></div>
     <div class="sec-label">Contadores activos hoy</div>
     <div class="usr-list" id="usr-list"></div>
     <div class="sep"></div>
@@ -257,6 +260,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
       <button class="btn btn-amarillo" id="btn-crear-usr">+ Crear contador</button>
       <div class="ok-msg" id="enc-ok">Contador creado correctamente</div>
     </div>
+    <button class="btn btn-verde" id="btn-ver-historial">📜 Ver historial</button>
     <button class="btn btn-amarillo" id="btn-ir-admin" style="display:none">🛠️ Administrar productos</button>
     <button class="btn btn-ghost" id="btn-salir-enc">Salir del panel</button>
   </div>
@@ -290,6 +294,18 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh
     <div class="sep"></div>
     <button class="btn btn-verde" id="btn-volver-panel">← Volver al panel</button>
     <button class="btn btn-ghost" id="btn-salir-admin">Salir</button>
+  </div>
+</div>
+
+<!-- HISTORIAL de stocks/pedidos -->
+<div class="screen" id="s-historial">
+  <div class="logo-header" style="padding:18px 22px">
+    <div class="enc-bar-text">📜 Historial</div>
+  </div>
+  <div class="sbody" style="padding-top:12px">
+    <div id="historial-list"></div>
+    <div class="sep"></div>
+    <button class="btn btn-ghost" id="btn-volver-historial">Volver</button>
   </div>
 </div>
 
@@ -1179,6 +1195,113 @@ function poblarDistribuidores() {
   if (actual && DISTRIBUIDORES[actual]) sel.value = actual;
 }
 
+// ── ESTADO DE STOCK MENSUAL + HISTORIAL ──
+var STOCK_STATUS_URL = "https://stockapp-donchiche-default-rtdb.firebaseio.com/stock_status";
+var HISTORIAL_URL = "https://stockapp-donchiche-default-rtdb.firebaseio.com/historial.json";
+
+function mesesDesde(fechaISO) {
+  if (!fechaISO) return Infinity;
+  var d = new Date(fechaISO + "T00:00:00");
+  if (isNaN(d.getTime())) return Infinity;
+  var n = new Date();
+  return (n.getFullYear() - d.getFullYear()) * 12 + (n.getMonth() - d.getMonth());
+}
+function hoyISO() {
+  var h = new Date();
+  return h.getFullYear() + "-" + String(h.getMonth() + 1).padStart(2, "0") + "-" + String(h.getDate()).padStart(2, "0");
+}
+function registrarStockHecho(local, dist, sec, repositor) {
+  var url = STOCK_STATUS_URL + "/" + encodeURIComponent(sanKey(local)) + "/" + encodeURIComponent(sanKey(dist)) + "/" + encodeURIComponent(sanKey(sec)) + ".json";
+  fetch(url, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fecha: hoyISO(), repositor: repositor || "", ts: Date.now() }) })
+    .catch(function(e) { console.error("stock_status write:", e); });
+}
+function registrarHistorial(entry) {
+  fetch(HISTORIAL_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(entry) })
+    .catch(function(e) { console.error("historial write:", e); });
+}
+
+// Tablero "Estado del stock de este mes" — por local (el encargado ve el suyo; admin ve los dos)
+function renderTablero() {
+  var cont = document.getElementById("tablero-stock");
+  if (!cont) return;
+  cont.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">Cargando estado...</div>';
+  fetch(STOCK_STATUS_URL + ".json").then(function(r) { return r.json(); }).then(function(data) {
+    data = data || {};
+    var locales = (encLogueado && encLogueado.local) ? [encLogueado.local] : ["Central", "Sucursal"];
+    var html = "";
+    locales.forEach(function(local) {
+      if (locales.length > 1) html += '<div style="font-weight:800;font-size:13px;color:var(--text);margin:10px 0 4px">🏪 ' + escAttr(local) + '</div>';
+      var st = data[sanKey(local)] || data[local] || {};
+      var provs = Object.keys(DISTRIBUIDORES);
+      if (!provs.length) { html += '<div style="color:var(--text3);font-size:12px">Sin distribuidores</div>'; return; }
+      provs.forEach(function(prov) {
+        var secs = (DISTRIBUIDORES[prov] && DISTRIBUIDORES[prov].secciones) || {};
+        var stProv = st[sanKey(prov)] || st[prov] || {};
+        Object.keys(secs).forEach(function(sec) {
+          var reg = stProv[sanKey(sec)] || stProv[sec];
+          var meses = (reg && reg.fecha) ? mesesDesde(reg.fecha) : Infinity;
+          var bg, brd, ico, txt;
+          if (meses <= 0) { bg = "#E2EFDA"; brd = "#43a047"; ico = "🟢"; txt = "Hecho este mes"; }
+          else if (meses === 1) { bg = "#FFF2CC"; brd = "#d6a700"; ico = "🟡"; txt = "Hace 1 mes — hacer stock"; }
+          else if (meses === Infinity) { bg = "#FFC7CE"; brd = "#c0392b"; ico = "🔴"; txt = "Sin registro — hacer stock"; }
+          else { bg = "#FFC7CE"; brd = "#c0392b"; ico = "🔴"; txt = "Hace " + meses + " meses — urgente"; }
+          var etiqueta = prov + (Object.keys(secs).length > 1 ? (" · " + sec) : "");
+          html += '<div class="tablero-row" data-local="' + escAttr(local) + '" data-prov="' + escAttr(prov) + '" data-sec="' + escAttr(sec) + '" ' +
+                    'style="display:flex;justify-content:space-between;align-items:center;gap:8px;background:' + bg + ';border-left:5px solid ' + brd + ';border-radius:8px;padding:9px 11px;margin-bottom:6px;cursor:pointer">' +
+                    '<div style="min-width:0"><div style="font-weight:800;font-size:13px;color:#222">' + escAttr(etiqueta) + '</div>' +
+                    '<div style="font-size:11px;font-weight:700;color:#444">' + ico + ' ' + txt + (reg && reg.fecha ? (" (" + reg.fecha.split("-").reverse().join("/") + ")") : "") + '</div></div>' +
+                    '<div style="font-size:11px;font-weight:800;color:' + brd + ';flex-shrink:0">Asignar ›</div>' +
+                  '</div>';
+        });
+      });
+    });
+    cont.innerHTML = html || '<div style="color:var(--text3);font-size:12px;padding:8px">Sin datos</div>';
+  }).catch(function(e) {
+    console.error("tablero:", e);
+    cont.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">No se pudo cargar el estado</div>';
+  });
+}
+
+// Tocar una fila del tablero -> abrir "crear contador" pre-cargado con ese distribuidor/seccion/local
+function asignarDesdeTablero(e) {
+  var row = e.target.closest ? e.target.closest(".tablero-row") : null;
+  if (!row) return;
+  var local = row.getAttribute("data-local");
+  var prov = row.getAttribute("data-prov");
+  var sec = row.getAttribute("data-sec");
+  elegirModo("stock");                 // un stock siempre es modo stock+pedido
+  locEnc = local;
+  document.getElementById("tog-c").classList.toggle("active", local === "Central");
+  document.getElementById("tog-l").classList.toggle("active", local === "Sucursal");
+  var selD = document.getElementById("new-dist");
+  selD.value = prov; actualizarSecciones();
+  var selS = document.getElementById("new-sec");
+  if (selS) selS.value = sec;
+  document.getElementById("enc-form-wrap").scrollIntoView({ behavior: "smooth" });
+}
+
+function abrirHistorial() { renderHistorial(); irA("s-historial"); }
+function renderHistorial() {
+  var cont = document.getElementById("historial-list");
+  cont.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">Cargando...</div>';
+  fetch(HISTORIAL_URL).then(function(r) { return r.json(); }).then(function(data) {
+    var arr = data ? Object.keys(data).map(function(k) { return data[k]; }) : [];
+    arr = arr.filter(Boolean).sort(function(a, b) { return (b.ts || 0) - (a.ts || 0); }).slice(0, 100);
+    if (!arr.length) { cont.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:10px">Sin movimientos todavía</div>'; return; }
+    var html = "";
+    arr.forEach(function(h) {
+      var tipo = h.tipo === "gondola" ? "🟢 Góndola" : (h.tipo === "deposito" ? "🟡 Depósito" : "📝 Pedido");
+      html += '<div class="form-card" style="margin-bottom:8px;padding:11px 13px">' +
+                '<div style="display:flex;justify-content:space-between;gap:8px"><div style="font-weight:800;font-size:13px">' + escAttr(h.dist || "") + (h.sec ? (" · " + escAttr(h.sec)) : "") + '</div>' +
+                '<div style="font-size:11px;font-weight:700;color:var(--text3);flex-shrink:0">' + escAttr(h.fecha || "") + ' ' + escAttr(h.hora || "") + '</div></div>' +
+                '<div style="font-size:12px;font-weight:700;color:#555;margin-top:3px">' + tipo + ' · ' + escAttr(h.local || "") + ' · ' + escAttr(h.repositor || "") + '</div>' +
+                '<div style="font-size:11px;color:var(--text3);margin-top:2px">' + (h.articulos || 0) + ' artículos · ' + (h.unidades || 0) + ' unidades</div>' +
+              '</div>';
+    });
+    cont.innerHTML = html;
+  }).catch(function(e) { console.error(e); cont.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">No se pudo cargar</div>'; });
+}
+
 // ════════ ADMINISTRACION DE CATALOGO (solo usuario admin) ════════
 function abrirAdmin() {
   cargarCatalogo(function() { poblarDistribuidores(); renderAdminCatalogo(); });
@@ -1471,6 +1594,10 @@ function renderUsuarios() {
   arr.forEach(function(u, i) {
     var mins = Math.round((u.expira - Date.now()) / 60000);
     var horas = Math.floor(mins / 60);
+    var estadoCont = ((u.modo||"stock")==="pedido")
+      ? {txt:"📝 Pedido pendiente", color:"#b8860b"}
+      : (u.gondolaLista ? {txt:"🟡 Góndola lista — falta depósito", color:"#b8860b"}
+                        : {txt:"⏳ Falta góndola y depósito", color:"#999"});
     var card = document.createElement("div");
     card.className = "usr-card";
     var appUrl = "https://gabdala13.github.io/stockapp-pedidos-donchiche/";
@@ -1484,6 +1611,7 @@ function renderUsuarios() {
         '<div class="usr-name">' + u.nombre + '</div>' +
         '<div class="usr-meta">' + u.dist + ' - ' + u.sec + ' - ' + u.sucursal + '</div>' +
         '<div class="usr-meta" style="font-weight:800;color:' + ((u.modo||"stock")==="pedido" ? "#b8860b" : "var(--verde2)") + '">' + ((u.modo||"stock")==="pedido" ? "📝 Solo pedido" : "📦 Stock + Pedido") + '</div>' +
+        '<div class="usr-meta" style="font-weight:800;color:' + estadoCont.color + '">' + estadoCont.txt + '</div>' +
         '<div class="usr-pass">' + u.pass + '</div>' +
         '<div class="usr-timer">' + horas + 'h ' + (mins%60) + 'm restantes</div>' +
         '<a href="https://wa.me/?text=' + msgWsp + '" target="_blank" style="display:inline-flex;align-items:center;gap:5px;margin-top:6px;background:#25D366;color:#fff;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:700;text-decoration:none;">📲 Enviar por WhatsApp</a>' +
@@ -1526,7 +1654,7 @@ function loginEncargado() {
       }
     }
     syncUsers(function() { renderUsuarios(); });
-    irA("s-panel-enc");
+    irA("s-panel-enc"); renderTablero();
   } else {
     err.style.display = "block";
   }
@@ -1573,7 +1701,7 @@ function loginUnificado() {
     document.getElementById("btn-ir-admin").style.display = "block";   // solo admin
     mostrarPickerModo();
     syncUsers(function() { renderUsuarios(); });
-    irA("s-panel-enc");
+    irA("s-panel-enc"); renderTablero();
     return;
   }
 
@@ -1598,7 +1726,7 @@ function loginUnificado() {
     }
     syncUsers(function() { renderUsuarios(); });
     mostrarPickerModo();   // siempre arranca en el paso 1: elegir que va a hacer
-    irA("s-panel-enc");
+    irA("s-panel-enc"); renderTablero();
     return;
   }
 
@@ -1718,10 +1846,10 @@ function iniciarConteo(tipo) {
   document.getElementById("stock-tipo").textContent = esPedido ? "PEDIDO - MARCA LOS FALTANTES" : (esG ? "CONTEO DE GONDOLA" : "CONTEO DE DEPOSITO");
   document.getElementById("fab-enviar").className = esG ? "fab fab-g" : "fab fab-y";
   document.getElementById("fab-enviar").innerHTML = esPedido ? "✓ Enviar pedido" : "✓ Enviar stock";
-  // Buscador: solo visible en modo pedido
+  // Buscador: visible en todos los modos (gondola, deposito y pedido)
   var bw = document.getElementById("buscador-wrap");
   if (bw) {
-    bw.style.display = esPedido ? "block" : "none";
+    bw.style.display = "block";
     var bi = document.getElementById("buscador-pedido"); if (bi) bi.value = "";
     var binf = document.getElementById("buscador-info"); if (binf) binf.style.display = "none";
   }
@@ -1904,8 +2032,8 @@ function renderProductos(productos) {
       actualizarProgreso(prods);
     });
   });
-  // Reaplicar el filtro de busqueda si hay algo escrito (modo pedido)
-  if (tipoConteo === "pedido") aplicarFiltroPedido();
+  // Reaplicar el filtro de busqueda si hay algo escrito (todos los modos)
+  aplicarFiltroPedido();
 }
 
 function showToast(msg, exito) {
@@ -2100,6 +2228,11 @@ function procederEnvio() {
     return r.json();
   }).then(function() {
     borrarConteoGuardado();  // El conteo ya se envió: limpiar el guardado local
+    // Historial (todos los envíos) + estado de stock (solo al completar depósito = stock del mes)
+    registrarHistorial({ ts: Date.now(), fecha: fecha, hora: hora, repositor: sesion.nombre,
+      local: sesion.sucursal, dist: sesion.dist, sec: sesion.sec, tipo: tipoConteo,
+      articulos: productosData.length, unidades: total });
+    if (tipoConteo === "deposito") registrarStockHecho(sesion.sucursal, sesion.dist, sesion.sec, sesion.nombre);
     if (esG) {
       // Guardar indices de productos con unidades pero sin vencimiento
       var productos = DISTRIBUIDORES[sesion.dist].secciones[sesion.sec];
@@ -2271,7 +2404,10 @@ document.addEventListener("DOMContentLoaded", function() {
   document.getElementById("admin-catalogo").addEventListener("click", adminCatalogoClick);
   document.getElementById("btn-salir-admin").addEventListener("click", function() { irA("s-inicio"); });
   document.getElementById("btn-ir-admin").addEventListener("click", abrirAdmin);
-  document.getElementById("btn-volver-panel").addEventListener("click", function() { irA("s-panel-enc"); });
+  document.getElementById("btn-volver-panel").addEventListener("click", function() { irA("s-panel-enc"); renderTablero(); });
+  document.getElementById("btn-ver-historial").addEventListener("click", abrirHistorial);
+  document.getElementById("btn-volver-historial").addEventListener("click", function() { irA("s-panel-enc"); renderTablero(); });
+  document.getElementById("tablero-stock").addEventListener("click", asignarDesdeTablero);
   document.getElementById("btn-auto-pass").addEventListener("click", generarPass);
   document.getElementById("btn-crear-usr").addEventListener("click", crearUsuario);
   document.getElementById("btn-comenzar-gondola").addEventListener("click", function() { iniciarConteo("gondola"); });
